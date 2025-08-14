@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Delete Material - {{ object.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-trash-alt"></i>
+                        Delete Course Material
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Warning!</strong> This action cannot be undone.
+                    </div>
+                    
+                    <p class="lead">Are you sure you want to delete the following course material?</p>
+                    
+                    <div class="bg-light p-3 rounded mb-4">
+                        <h5 class="mb-2">{{ object.title }}</h5>
+                        <p class="text-muted mb-2">
+                            <strong>Course:</strong> {{ object.course.title }}
+                        </p>
+                        {% if object.description %}
+                        <p class="text-muted mb-2">
+                            <strong>Description:</strong> {{ object.description|truncatewords:20 }}
+                        </p>
+                        {% endif %}
+                        <p class="text-muted mb-2">
+                            <strong>Type:</strong> 
+                            <span class="badge badge-secondary">{{ object.get_material_type_display }}</span>
+                        </p>
+                        {% if object.file %}
+                        <p class="text-muted mb-0">
+                            <strong>File:</strong> {{ object.file.name }}
+                        </p>
+                        {% endif %}
+                    </div>
+                    
+                    <form method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash-alt"></i>
+                            Yes, Delete Material
+                        </button>
+                        <a href="{% url 'courses:materials' slug=object.course.slug %}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i>
+                            Cancel
+                        </a>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Course Navigation -->
+            <div class="mt-3">
+                <a href="{% url 'courses:materials' slug=object.course.slug %}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Course Materials
+                </a>
+                <a href="{% url 'courses:detail' slug=object.course.slug %}" class="btn btn-outline-info">
+                    <i class="fas fa-eye"></i>
+                    View Course
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

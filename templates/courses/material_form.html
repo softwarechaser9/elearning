@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+    {% if form.instance.pk %}Edit Material{% else %}Add Material{% endif %} - {{ course.title }}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'courses:list' %}">Courses</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'courses:detail' course.slug %}">{{ course.title }}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'courses:materials' course.slug %}">Materials</a></li>
+                    <li class="breadcrumb-item active">
+                        {% if form.instance.pk %}Edit{% else %}Add{% endif %} Material
+                    </li>
+                </ol>
+            </nav>
+            
+            <div class="card shadow">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-file-plus"></i>
+                        {% if form.instance.pk %}
+                            Edit Material: {{ form.instance.title }}
+                        {% else %}
+                            Add Course Material
+                        {% endif %}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Basic Information -->
+                        <div class="form-section mb-4">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-info-circle"></i> Basic Information
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ form.title|as_crispy_field }}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ form.material_type|as_crispy_field }}
+                                </div>
+                            </div>
+                            {{ form.description|as_crispy_field }}
+                        </div>
+                        
+                        <!-- File or Link -->
+                        <div class="form-section mb-4">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-upload"></i> Content
+                            </h5>
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>Choose one:</strong> Upload a file OR provide an external link (not both).
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ form.file|as_crispy_field }}
+                                    <small class="text-muted">
+                                        Supported formats: PDF, DOC, DOCX, JPG, PNG, MP4, MP3, etc.
+                                    </small>
+                                </div>
+                                <div class="col-md-6">
+                                    {{ form.external_link|as_crispy_field }}
+                                    <small class="text-muted">
+                                        For YouTube videos, online articles, external resources, etc.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Settings -->
+                        <div class="form-section mb-4">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-cogs"></i> Settings
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    {{ form.order|as_crispy_field }}
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check mt-4">
+                                        {{ form.is_downloadable }}
+                                        <label class="form-check-label" for="{{ form.is_downloadable.id_for_label }}">
+                                            {{ form.is_downloadable.label }}
+                                        </label>
+                                        <small class="form-text text-muted">Allow students to download this file</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check mt-4">
+                                        {{ form.is_public }}
+                                        <label class="form-check-label" for="{{ form.is_public.id_for_label }}">
+                                            {{ form.is_public.label }}
+                                        </label>
+                                        <small class="form-text text-muted">Visible without enrollment</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Optional Metadata -->
+                        <div class="form-section mb-4">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-tags"></i> Additional Info (Optional)
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ form.duration|as_crispy_field }}
+                                    <small class="text-muted">For videos/audio (e.g., "15 minutes", "2:30")</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit Buttons -->
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-save"></i>
+                                {% if form.instance.pk %}Update Material{% else %}Add Material{% endif %}
+                            </button>
+                            <a href="{% url 'courses:materials' course.slug %}" class="btn btn-secondary btn-lg ml-2">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            {% if form.instance.pk and form.instance.file %}
+                                <a href="{{ form.instance.file.url }}" target="_blank" class="btn btn-info btn-lg ml-2">
+                                    <i class="fas fa-eye"></i> View Current File
+                                </a>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Update file input help text based on material type
+    $('#id_material_type').change(function() {
+        const materialType = $(this).val();
+        let helpText = 'Supported formats: ';
+        
+        switch(materialType) {
+            case 'document':
+                helpText += 'PDF, DOC, DOCX, TXT, RTF';
+                break;
+            case 'video':
+                helpText += 'MP4, AVI, MOV, WMV (or use external link for YouTube)';
+                break;
+            case 'audio':
+                helpText += 'MP3, WAV, M4A, OGG';
+                break;
+            case 'image':
+                helpText += 'JPG, PNG, GIF, BMP, SVG';
+                break;
+            case 'link':
+                helpText = 'Use external link field instead of file upload';
+                break;
+            default:
+                helpText += 'Most common file formats';
+        }
+        
+        $('#id_file').next('.text-muted').text(helpText);
+    });
+    
+    // Trigger on page load
+    $('#id_material_type').trigger('change');
+});
+</script>
+{% endblock %}

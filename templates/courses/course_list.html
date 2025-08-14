@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+
+{% block title %}Courses - eLearning Platform{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="fas fa-book"></i> Available Courses</h2>
+    </div>
+</div>
+
+<!-- Search and Filter Section -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row">
+            <div class="col-md-4 mb-3">
+                <input type="text" name="search" class="form-control" 
+                       placeholder="Search courses..." value="{{ current_search }}">
+            </div>
+            <div class="col-md-2 mb-3">
+                <select name="category" class="form-control">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                        {% if category %}
+                        <option value="{{ category }}" {% if category == current_category %}selected{% endif %}>
+                            {{ category }}
+                        </option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 mb-3">
+                <select name="difficulty" class="form-control">
+                    <option value="">All Levels</option>
+                    {% for value, label in difficulty_choices %}
+                    <option value="{{ value }}" {% if value == current_difficulty %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 mb-3">
+                <select name="sort" class="form-control">
+                    <option value="-created_at" {% if current_sort == '-created_at' %}selected{% endif %}>Newest First</option>
+                    <option value="title" {% if current_sort == 'title' %}selected{% endif %}>Title A-Z</option>
+                    <option value="-total_enrollments" {% if current_sort == '-total_enrollments' %}selected{% endif %}>Most Popular</option>
+                    <option value="-avg_rating" {% if current_sort == '-avg_rating' %}selected{% endif %}>Highest Rated</option>
+                </select>
+            </div>
+            <div class="col-md-2 mb-3">
+                <button type="submit" class="btn btn-primary btn-block">
+                    <i class="fas fa-search"></i> Search
+                </button>
+            </div>
+        </form>
+        
+        <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" name="free" value="true" id="freeOnly"
+                   {% if request.GET.free == 'true' %}checked{% endif %}
+                   onchange="this.form.submit()">
+            <label class="form-check-label" for="freeOnly">
+                Free courses only
+            </label>
+        </div>
+    </div>
+</div>
+
+<!-- Courses Grid -->
+<div class="row">
+    {% for course in courses %}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            {% if course.course_image %}
+                <img src="{{ course.course_image.url }}" class="card-img-top" 
+                     style="height: 200px; object-fit: cover;" alt="{{ course.title }}">
+            {% else %}
+                <div class="card-img-top bg-primary d-flex align-items-center justify-content-center" 
+                     style="height: 200px;">
+                    <i class="fas fa-book fa-3x text-white"></i>
+                </div>
+            {% endif %}
+            
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">{{ course.title|truncatechars:50 }}</h5>
+                <p class="card-text text-muted small">
+                    <i class="fas fa-user"></i> {{ course.teacher.get_full_name }}
+                </p>
+                <p class="card-text flex-grow-1">{{ course.short_description|truncatechars:100 }}</p>
+                
+                <div class="mt-auto">
+                    <!-- Course Info -->
+                    <div class="row text-center mb-2">
+                        <div class="col-4">
+                            <small class="text-muted">
+                                <i class="fas fa-users"></i><br>
+                                {{ course.enrollment_count }}/{{ course.max_students }}
+                            </small>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-muted">
+                                <i class="fas fa-star"></i><br>
+                                {{ course.avg_rating|floatformat:1|default:"N/A" }}
+                            </small>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-muted">
+                                <i class="fas fa-level-up-alt"></i><br>
+                                {{ course.get_difficulty_level_display }}
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <!-- Badges -->
+                    <div class="mb-2">
+                        {% if course.is_free %}
+                            <span class="badge badge-success">Free</span>
+                        {% else %}
+                            <span class="badge badge-warning">${{ course.price }}</span>
+                        {% endif %}
+                        
+                        {% if course.category %}
+                            <span class="badge badge-secondary">{{ course.category }}</span>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Action Button -->
+                    {% if course.slug %}
+                    <a href="{% url 'courses:detail' course.slug %}" 
+                       class="btn btn-primary btn-block">
+                        <i class="fas fa-eye"></i> View Details
+                    </a>
+                    {% else %}
+                    <span class="btn btn-secondary btn-block disabled">
+                        <i class="fas fa-exclamation-triangle"></i> Slug Missing
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="text-center py-5">
+            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">No courses found</h4>
+            <p class="text-muted">Try adjusting your search criteria or browse all courses.</p>
+            {% if user.is_teacher %}
+                <a href="{% url 'courses:create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create New Course
+                </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="Course pagination">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{{ request.GET.urlencode }}">&laquo; First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{{ request.GET.urlencode }}">Previous</a>
+                    </li>
+                {% endif %}
+                
+                <li class="page-item active">
+                    <span class="page-link">
+                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    </span>
+                </li>
+                
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{{ request.GET.urlencode }}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{{ request.GET.urlencode }}">Last &raquo;</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+{% endif %}
+
+<!-- Quick Stats -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <div class="row">
+                    <div class="col-md-3">
+                        <h4>{{ courses|length }}</h4>
+                        <p class="text-muted mb-0">Available Courses</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h4>{{ categories|length }}</h4>
+                        <p class="text-muted mb-0">Categories</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h4>Free</h4>
+                        <p class="text-muted mb-0">Learning for All</p>
+                    </div>
+                    <div class="col-md-3">
+                        {% if user.is_teacher %}
+                            <a href="{% url 'courses:create' %}" class="btn btn-success">
+                                <i class="fas fa-plus"></i> Create Course
+                            </a>
+                        {% else %}
+                            <h4>Start</h4>
+                            <p class="text-muted mb-0">Learning Today</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Auto-submit form when free checkbox changes
+    $('#freeOnly').change(function() {
+        $(this).closest('form').submit();
+    });
+});
+</script>
+{% endblock %}

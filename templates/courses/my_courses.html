@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+
+{% block title %}My Courses - eLearning Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-book-reader"></i> 
+                {% if user_type == 'teacher' %}My Courses{% else %}Enrolled Courses{% endif %}
+            </h1>
+        </div>
+    </div>
+    
+    {% if user_type == 'teacher' %}
+        <!-- Teacher's Created Courses -->
+        {% if courses %}
+            <div class="row">
+                {% for course in courses %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        {% if course.course_image %}
+                            <img src="{{ course.course_image.url }}" class="card-img-top" 
+                                 style="height: 200px; object-fit: cover;" alt="{{ course.title }}">
+                        {% else %}
+                            <div class="card-img-top bg-primary d-flex align-items-center justify-content-center" 
+                                 style="height: 200px;">
+                                <i class="fas fa-graduation-cap fa-3x text-white"></i>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">{{ course.title }}</h5>
+                            <p class="card-text flex-grow-1">{{ course.short_description }}</p>
+                            
+                            <div class="course-meta mb-3">
+                                <small class="text-muted">
+                                    <i class="fas fa-user-graduate"></i> {{ course.enrollment_count }} students enrolled
+                                    | <i class="fas fa-calendar"></i> Created {{ course.created_at|date:"M d, Y" }}
+                                </small>
+                            </div>
+                            
+                            <div class="course-status mb-3">
+                                {% if course.status == 'published' %}
+                                    <span class="badge badge-success">Published</span>
+                                {% elif course.status == 'draft' %}
+                                    <span class="badge badge-secondary">Draft</span>
+                                {% else %}
+                                    <span class="badge badge-warning">{{ course.get_status_display }}</span>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="card-actions">
+                                <a href="{% url 'courses:detail' course.slug %}" class="btn btn-primary btn-block">
+                                    <i class="fas fa-eye"></i> View Course
+                                </a>
+                                <div class="btn-group btn-group-sm btn-block mt-2" role="group">
+                                    <a href="{% url 'courses:edit' course.slug %}" class="btn btn-outline-warning">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </a>
+                                    <a href="{% url 'courses:materials' course.slug %}" class="btn btn-outline-info">
+                                        <i class="fas fa-book"></i> Materials
+                                    </a>
+                                    <a href="{% url 'courses:manage_students' course.slug %}" class="btn btn-outline-success">
+                                        <i class="fas fa-users"></i> Students
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <!-- Teacher Empty State -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <i class="fas fa-chalkboard-teacher fa-5x text-muted mb-4"></i>
+                        <h3>No Courses Created</h3>
+                        <p class="text-muted mb-4">You haven't created any courses yet. Start by creating your first course!</p>
+                        <a href="{% url 'courses:create' %}" class="btn btn-primary btn-lg">
+                            <i class="fas fa-plus"></i> Create Course
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    
+    {% else %}
+        <!-- Student's Enrolled Courses -->
+        {% if enrollments %}
+            <div class="row">
+                {% for enrollment in enrollments %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        {% if enrollment.course.course_image %}
+                            <img src="{{ enrollment.course.course_image.url }}" class="card-img-top" 
+                                 style="height: 200px; object-fit: cover;" alt="{{ enrollment.course.title }}">
+                        {% else %}
+                            <div class="card-img-top bg-primary d-flex align-items-center justify-content-center" 
+                                 style="height: 200px;">
+                                <i class="fas fa-graduation-cap fa-3x text-white"></i>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">{{ enrollment.course.title }}</h5>
+                            <p class="card-text flex-grow-1">{{ enrollment.course.short_description }}</p>
+                            
+                            <div class="progress mb-2" style="height: 20px;">
+                                <div class="progress-bar" role="progressbar" 
+                                     data-progress="{{ enrollment.progress }}" 
+                                     aria-valuenow="{{ enrollment.progress }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                    {{ enrollment.progress }}%
+                                </div>
+                            </div>
+                            
+                            <div class="course-meta mb-3">
+                                <small class="text-muted">
+                                    <i class="fas fa-chalkboard-teacher"></i> {{ enrollment.course.teacher.get_full_name|default:enrollment.course.teacher.username }}
+                                    | <i class="fas fa-calendar"></i> Enrolled {{ enrollment.date_enrolled|date:"M d, Y" }}
+                                </small>
+                            </div>
+                            
+                            {% if enrollment.date_completed %}
+                                <div class="completion-info mb-3">
+                                    <span class="badge badge-success">
+                                        <i class="fas fa-check-circle"></i> Completed {{ enrollment.date_completed|date:"M d, Y" }}
+                                    </span>
+                                </div>
+                            {% endif %}
+                            
+                            <div class="card-actions">
+                                <a href="{% url 'courses:detail' enrollment.course.slug %}" class="btn btn-primary btn-block">
+                                    <i class="fas fa-eye"></i> View Course
+                                </a>
+                                <div class="btn-group btn-group-sm btn-block mt-2" role="group">
+                                    <a href="{% url 'courses:course_progress' enrollment.course.slug %}" class="btn btn-outline-info">
+                                        <i class="fas fa-chart-line"></i> Progress
+                                    </a>
+                                    <a href="{% url 'courses:unenroll' enrollment.course.slug %}" class="btn btn-outline-danger" 
+                                       onclick="return confirm('Are you sure you want to unenroll from this course?')">
+                                        <i class="fas fa-times"></i> Unenroll
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <!-- Student Empty State -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <i class="fas fa-book-reader fa-5x text-muted mb-4"></i>
+                        <h3>No Courses Enrolled</h3>
+                        <p class="text-muted mb-4">You haven't enrolled in any courses yet. Browse our course catalog to get started!</p>
+                        <a href="{% url 'courses:list' %}" class="btn btn-primary btn-lg">
+                            <i class="fas fa-search"></i> Browse Courses
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    {% endif %}
+    
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for page_num in page_obj.paginator.page_range %}
+                        {% if page_num == page_obj.number %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set progress bar widths from data attributes
+    const progressBars = document.querySelectorAll('.progress-bar[data-progress]');
+    progressBars.forEach(function(bar) {
+        const progress = bar.getAttribute('data-progress');
+        bar.style.width = progress + '%';
+    });
+});
+</script>
+{% endblock %}

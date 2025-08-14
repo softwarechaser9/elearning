@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+
+{% block title %}Manage Students - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'courses:list' %}">Courses</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'courses:detail' course.slug %}">{{ course.title }}</a></li>
+                    <li class="breadcrumb-item active">Manage Students</li>
+                </ol>
+            </nav>
+            
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-users"></i> Manage Students</h1>
+                <a href="{% url 'courses:detail' course.slug %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Course
+                </a>
+            </div>
+            
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle"></i> Course: {{ course.title }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Total Enrollments:</strong> {{ enrollments.count }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Active Students:</strong> 
+                            {% with active_count=enrollments|length %}
+                                {% for enrollment in enrollments %}
+                                    {% if enrollment.is_active and not enrollment.is_blocked %}{{ forloop.counter0|add:"1" }}{% endif %}
+                                {% endfor %}
+                            {% endwith %}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Blocked Students:</strong>
+                            {% with blocked_count=0 %}
+                                {% for enrollment in enrollments %}
+                                    {% if enrollment.is_blocked %}{{ forloop.counter0|add:"1" }}{% endif %}
+                                {% endfor %}
+                            {% endwith %}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Course Status:</strong> 
+                            <span class="badge badge-{% if course.status == 'published' %}success{% else %}secondary{% endif %}">
+                                {{ course.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            {% if enrollments %}
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-list"></i> Enrolled Students</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Enrolled Date</th>
+                                        <th>Progress</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for enrollment in enrollments %}
+                                    <tr class="{% if enrollment.is_blocked %}table-danger{% elif not enrollment.is_active %}table-warning{% endif %}">
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                {% if enrollment.student.profile_picture %}
+                                                    <img src="{{ enrollment.student.profile_picture.url }}" alt="Profile" 
+                                                         class="rounded-circle mr-3" style="width: 40px; height: 40px; object-fit: cover;">
+                                                {% else %}
+                                                    <div class="bg-info rounded-circle mr-3 d-flex align-items-center justify-content-center" 
+                                                         style="width: 40px; height: 40px;">
+                                                        <i class="fas fa-user text-white"></i>
+                                                    </div>
+                                                {% endif %}
+                                                <div>
+                                                    <strong>{{ enrollment.student.get_full_name|default:enrollment.student.username }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">@{{ enrollment.student.username }}</small>
+                                                    {% if enrollment.student.email %}
+                                                        <br>
+                                                        <small class="text-muted">{{ enrollment.student.email }}</small>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {{ enrollment.date_enrolled|date:"M d, Y" }}
+                                            <br>
+                                            <small class="text-muted">{{ enrollment.date_enrolled|timesince }} ago</small>
+                                        </td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar" role="progressbar" 
+                                                     data-progress="{{ enrollment.progress }}">
+                                                    {{ enrollment.progress }}%
+                                                </div>
+                                            </div>
+                                            {% if enrollment.date_completed %}
+                                                <small class="text-success">
+                                                    <i class="fas fa-check-circle"></i> Completed {{ enrollment.date_completed|date:"M d, Y" }}
+                                                </small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if enrollment.is_blocked %}
+                                                <span class="badge badge-danger">
+                                                    <i class="fas fa-ban"></i> Blocked
+                                                </span>
+                                            {% elif enrollment.is_active %}
+                                                <span class="badge badge-success">
+                                                    <i class="fas fa-check-circle"></i> Active
+                                                </span>
+                                            {% else %}
+                                                <span class="badge badge-warning">
+                                                    <i class="fas fa-pause-circle"></i> Inactive
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{% url 'accounts:profile' enrollment.student.username %}" 
+                                                   class="btn btn-outline-info" title="View Profile">
+                                                    <i class="fas fa-user"></i>
+                                                </a>
+                                                <a href="{% url 'chat:private_detail' enrollment.student.id %}" 
+                                                   class="btn btn-outline-primary" title="Send Message">
+                                                    <i class="fas fa-comment"></i>
+                                                </a>
+                                                {% if enrollment.is_blocked %}
+                                                    <form method="post" action="{% url 'courses:unblock_student' course.slug enrollment.student.id %}" class="d-inline">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-outline-success" 
+                                                                title="Unblock Student" 
+                                                                onclick="return confirm('Are you sure you want to unblock this student?')">
+                                                            <i class="fas fa-unlock"></i>
+                                                        </button>
+                                                    </form>
+                                                {% else %}
+                                                    <form method="post" action="{% url 'courses:block_student' course.slug enrollment.student.id %}" class="d-inline">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-outline-danger" 
+                                                                title="Block Student" 
+                                                                onclick="return confirm('Are you sure you want to block this student? They will lose access to the course.')">
+                                                            <i class="fas fa-ban"></i>
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-users fa-4x text-muted mb-3"></i>
+                        <h4 class="text-muted">No Students Enrolled</h4>
+                        <p class="text-muted">When students enroll in your course, they will appear here.</p>
+                        <a href="{% url 'courses:detail' course.slug %}" class="btn btn-primary">
+                            <i class="fas fa-eye"></i> View Course
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set progress bar widths from data attributes
+    const progressBars = document.querySelectorAll('.progress-bar[data-progress]');
+    progressBars.forEach(function(bar) {
+        const progress = bar.getAttribute('data-progress');
+        bar.style.width = progress + '%';
+    });
+});
+</script>
+{% endblock %}

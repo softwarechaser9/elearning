@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}Find Users - eLearning Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-search"></i> Find Users to Chat With</h1>
+                <div>
+                    <a href="{% url 'chat:private_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Chats
+                    </a>
+                </div>
+            </div>
+
+            <!-- Search Form -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="get">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <input type="text" name="q" class="form-control" 
+                                       placeholder="Search by username, first name, or last name..." 
+                                       value="{{ query }}" autofocus>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-primary btn-block">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Search Results -->
+            {% if query %}
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-users"></i> Search Results for "{{ query }}"</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if users %}
+                            <div class="list-group list-group-flush">
+                                {% for found_user in users %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center">
+                                        <div class="mr-3">
+                                            <i class="fas fa-user-circle fa-2x text-primary"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-1">
+                                                {{ found_user.get_full_name|default:found_user.username }}
+                                                {% if found_user.user_type == 'teacher' %}
+                                                    <span class="badge badge-info">Teacher</span>
+                                                {% else %}
+                                                    <span class="badge badge-success">Student</span>
+                                                {% endif %}
+                                            </h6>
+                                            <p class="mb-1 text-muted">@{{ found_user.username }}</p>
+                                            {% if found_user.bio %}
+                                                <small class="text-muted">{{ found_user.bio|truncatechars:80 }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        {% if found_user != user %}
+                                            <form method="post" action="{% url 'chat:start_private_chat' found_user.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-primary btn-sm">
+                                                    <i class="fas fa-comment"></i> Start Chat
+                                                </button>
+                                            </form>
+                                            <a href="{% url 'accounts:profile' found_user.username %}" class="btn btn-outline-secondary btn-sm">
+                                                <i class="fas fa-user"></i> Profile
+                                            </a>
+                                        {% else %}
+                                            <span class="badge badge-secondary">That's You!</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-user-slash fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No Users Found</h5>
+                                <p class="text-muted">Try a different search term.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% else %}
+                <!-- Instructions when no search has been made -->
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-search fa-4x text-muted mb-3"></i>
+                        <h4 class="text-muted">Search for Users</h4>
+                        <p class="text-muted">Use the search box above to find other students and teachers to chat with.</p>
+                        <div class="mt-4">
+                            <h6 class="text-muted">Quick Tips:</h6>
+                            <ul class="list-unstyled text-muted">
+                                <li><i class="fas fa-lightbulb text-warning"></i> Search by username, first name, or last name</li>
+                                <li><i class="fas fa-lightbulb text-warning"></i> You can chat with any registered user</li>
+                                <li><i class="fas fa-lightbulb text-warning"></i> Check out course chats for group discussions</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

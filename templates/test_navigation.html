@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+
+{% block title %}eLearning App - Test Navigation{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="text-center mb-4">🎓 eLearning Application - Test Navigation</h1>
+            <div class="alert alert-info">
+                <h5><i class="fas fa-info-circle"></i> Test Accounts</h5>
+                <ul class="mb-0">
+                    <li><strong>Teacher:</strong> username: <code>testteacher</code>, password: <code>testpass123</code></li>
+                    <li><strong>Student:</strong> username: <code>teststudent</code>, password: <code>testpass123</code></li>
+                    <li><strong>Your Account:</strong> username: <code>limon</code></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Authentication -->
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-user-lock"></i> Authentication</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="{% url 'accounts:register' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-plus"></i> Register
+                        </a>
+                        <a href="{% url 'accounts:login' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'accounts:profile' user.username %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user"></i> Profile
+                        </a>
+                        <a href="{% url 'accounts:dashboard' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Courses -->
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-graduation-cap"></i> Courses</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="{% url 'courses:list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-list"></i> Course List
+                        </a>
+                        {% if user.is_authenticated and user.user_type == 'teacher' %}
+                        <a href="{% url 'courses:create' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-plus"></i> Create Course
+                        </a>
+                        <a href="{% url 'courses:teacher_dashboard' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-chalkboard-teacher"></i> Teacher Dashboard
+                        </a>
+                        {% endif %}
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'courses:my_courses' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-book-reader"></i> My Courses
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-comments"></i> Chat System</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'chat:room_list' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-list"></i> Chat Rooms
+                        </a>
+                        <a href="/chat/room/1/" class="list-group-item list-group-item-action">
+                            <i class="fas fa-comment"></i> Test Chat Room
+                        </a>
+                        {% else %}
+                        <div class="list-group-item">
+                            <em class="text-muted">Login required for chat</em>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- API -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="mb-0"><i class="fas fa-code"></i> API Endpoints</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="/api/users/" target="_blank" class="list-group-item list-group-item-action">
+                            <i class="fas fa-users"></i> Users API
+                        </a>
+                        <a href="/api/courses/" target="_blank" class="list-group-item list-group-item-action">
+                            <i class="fas fa-graduation-cap"></i> Courses API
+                        </a>
+                        <a href="/api/chat-rooms/" target="_blank" class="list-group-item list-group-item-action">
+                            <i class="fas fa-comments"></i> Chat Rooms API
+                        </a>
+                        <a href="/api/enrollments/" target="_blank" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-graduate"></i> Enrollments API
+                        </a>
+                        <a href="/api/feedback/" target="_blank" class="list-group-item list-group-item-action">
+                            <i class="fas fa-star"></i> Feedback API
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-cog"></i> Administration</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="/admin/" target="_blank" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-shield"></i> Admin Panel
+                        </a>
+                        <div class="list-group-item">
+                            <small class="text-muted">Use your superuser account to access admin</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="alert alert-success">
+                <h5><i class="fas fa-check-circle"></i> Current Status</h5>
+                <ul class="mb-0">
+                    <li>✅ User Authentication (Registration, Login, Profiles)</li>
+                    <li>✅ Course Management (CRUD, Enrollment, Feedback)</li>
+                    <li>✅ Real-time Chat System (WebSocket-powered)</li>
+                    <li>✅ REST API (All endpoints with DRF)</li>
+                    <li>✅ Admin Interface (Full management)</li>
+                    <li>✅ Responsive UI (Bootstrap 4)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

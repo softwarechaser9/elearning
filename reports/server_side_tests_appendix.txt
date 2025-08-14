@@ -1,0 +1,52 @@
+11.1 Example Test Snippets (Updated)
+
+Location of tests: each Django app contains a tests.py with API, model, permission, and signals tests.
+
+api/tests/test_enrollment.py (illustrative)
+
+from rest_framework.test import APITestCase
+from django.contrib.auth import get_user_model
+from courses.models import Course, Enrollment
+
+class EnrollmentTests(APITestCase):
+    def setUp(self):
+        self.teacher = get_user_model().objects.create_user(username='t1', password='pass', user_type='teacher')
+        self.student = get_user_model().objects.create_user(username='s1', password='pass', user_type='student')
+        self.course = Course.objects.create(title='C1', description='D', teacher=self.teacher)
+        self.client.force_authenticate(self.student)
+
+    def test_student_can_enroll(self):
+        url = f"/api/courses/{self.course.id}/enroll/"
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(Enrollment.objects.filter(student=self.student, course=self.course).exists())
+
+    def test_duplicate_enrollment_rejected(self):
+        Enrollment.objects.create(student=self.student, course=self.course)
+        url = f"/api/courses/{self.course.id}/enroll/"
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 400)
+
+chat/tests/test_chat_channels.py (illustrative)
+
+from channels.testing import WebsocketCommunicator
+from django.test import TransactionTestCase
+from django.conf import settings
+from elearning.asgi import application
+
+class ChatWebSocketTests(TransactionTestCase):
+    async def test_auth_required(self):
+        # Connect as anonymous should fail; as authenticated should succeed
+        communicator = WebsocketCommunicator(application, "/ws/chat/room-1/")
+        connected, _ = await communicator.connect()
+        self.assertFalse(connected)
+        await communicator.disconnect()
+
+How to run:
+- python manage.py test
+
+Optional coverage:
+- pip install coverage
+- python -m coverage run manage.py test
+- python -m coverage report
+- python -m coverage html

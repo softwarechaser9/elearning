@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - eLearning Platform{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="jumbotron bg-primary text-white">
+            <h1 class="display-4">Welcome, {{ user.get_full_name }}!</h1>
+            <p class="lead">
+                {% if user.is_teacher %}
+                    Ready to inspire and educate students today?
+                {% else %}
+                    Ready to learn something new today?
+                {% endif %}
+            </p>
+            <hr class="my-4 bg-light">
+            <p>
+                {% if user.is_teacher %}
+                    Manage your courses, upload materials, and interact with your students.
+                {% else %}
+                    Explore courses, engage with teachers, and track your learning progress.
+                {% endif %}
+            </p>
+            {% if user.is_teacher %}
+                <a class="btn btn-light btn-lg" href="/courses/create/" role="button">
+                    <i class="fas fa-plus"></i> Create New Course
+                </a>
+            {% else %}
+                <a class="btn btn-light btn-lg" href="/courses/" role="button">
+                    <i class="fas fa-search"></i> Browse Courses
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card shadow mb-4">
+            <div class="card-body text-center">
+                <i class="fas fa-user fa-3x text-primary mb-3"></i>
+                <h5>My Profile</h5>
+                <p class="card-text">View and edit your profile information.</p>
+                <a href="{% url 'accounts:profile' user.username %}" class="btn btn-primary">View Profile</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card shadow mb-4">
+            <div class="card-body text-center">
+                <i class="fas fa-book fa-3x text-success mb-3"></i>
+                <h5>
+                    {% if user.is_teacher %}My Courses{% else %}Enrolled Courses{% endif %}
+                </h5>
+                <p class="card-text">
+                    {% if user.is_teacher %}
+                        Manage your courses and students.
+                    {% else %}
+                        Access your enrolled courses.
+                    {% endif %}
+                </p>
+                <a href="/courses/" class="btn btn-success">View Courses</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card shadow mb-4">
+            <div class="card-body text-center">
+                <i class="fas fa-comments fa-3x text-info mb-3"></i>
+                <h5>Chat</h5>
+                <p class="card-text">Connect with other students and teachers.</p>
+                <a href="/chat/" class="btn btn-info">Start Chatting</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Quick Stats</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    {% if user.is_teacher %}
+                        <div class="col-md-3">
+                            <h3 class="text-primary">{{ courses_created_count|default:0 }}</h3>
+                            <p class="text-muted">Courses Created</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="text-success">{{ total_students|default:0 }}</h3>
+                            <p class="text-muted">Total Students</p>
+                        </div>
+                    {% else %}
+                        <div class="col-md-3">
+                            <h3 class="text-primary">{{ courses_enrolled_count|default:0 }}</h3>
+                            <p class="text-muted">Courses Enrolled</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="text-success">{{ courses_completed_count|default:0 }}</h3>
+                            <p class="text-muted">Courses Completed</p>
+                        </div>
+                    {% endif %}
+                    <div class="col-md-3">
+                        <h3 class="text-info">{{ status_updates_count|default:0 }}</h3>
+                        <p class="text-muted">Status Updates</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h3 class="text-warning">{{ user.date_joined|timesince }}</h3>
+                        <p class="text-muted">Member Since</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header">
+                <h5><i class="fas fa-clock"></i> Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                {% if user.status_updates.all %}
+                    {% for status in user.status_updates.all|slice:":5" %}
+                    <div class="media mb-2">
+                        <i class="fas fa-rss text-muted mr-3 mt-1"></i>
+                        <div class="media-body">
+                            <p class="mb-1">{{ status.content }}</p>
+                            <small class="text-muted">{{ status.created_at|timesince }} ago</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-clock fa-3x mb-3"></i>
+                        <p>No recent activity. Start by posting a status update!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

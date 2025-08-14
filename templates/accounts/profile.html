@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ profile_user.get_full_name }} - Profile{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-body text-center">
+                {% if profile_user.profile_picture %}
+                    <img src="{{ profile_user.profile_picture.url }}" alt="Profile" class="rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                {% else %}
+                    <div class="bg-primary rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 150px; height: 150px;">
+                        <i class="fas fa-user fa-5x text-white"></i>
+                    </div>
+                {% endif %}
+                
+                <h4>{{ profile_user.get_full_name }}</h4>
+                <p class="text-muted">@{{ profile_user.username }}</p>
+                <span class="badge badge-{% if profile_user.is_teacher %}warning{% else %}info{% endif %} mb-2">
+                    <i class="fas fa-{% if profile_user.is_teacher %}chalkboard-teacher{% else %}user-graduate{% endif %}"></i>
+                    {{ profile_user.get_user_type_display }}
+                </span>
+                
+                {% if profile_user.bio %}
+                <p class="card-text">{{ profile_user.bio }}</p>
+                {% endif %}
+                
+                <div class="text-left">
+                    {% if profile_user.location %}
+                    <p class="mb-1">
+                        <i class="fas fa-map-marker-alt text-muted"></i> {{ profile_user.location }}
+                    </p>
+                    {% endif %}
+                    
+                    {% if profile_user.is_teacher and profile_user.experience_years %}
+                    <p class="mb-1">
+                        <i class="fas fa-clock text-muted"></i> {{ profile_user.experience_years }} years experience
+                    </p>
+                    {% endif %}
+                    
+                    {% if profile_user.qualification %}
+                    <p class="mb-1">
+                        <i class="fas fa-graduation-cap text-muted"></i> {{ profile_user.qualification }}
+                    </p>
+                    {% endif %}
+                    
+                    <p class="mb-1">
+                        <i class="fas fa-calendar-alt text-muted"></i> Joined {{ profile_user.date_joined|date:"F Y" }}
+                    </p>
+                </div>
+                
+                {% if user == profile_user %}
+                <div class="mt-3">
+                    <a href="{% url 'accounts:profile_edit' %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-edit"></i> Edit Profile
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <!-- Status Updates -->
+        <div class="card shadow mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-rss"></i> Status Updates</h5>
+            </div>
+            <div class="card-body">
+                {% if user == profile_user %}
+                <!-- Status Update Form -->
+                <form method="post" action="{% url 'accounts:create_status' %}" class="mb-4">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <textarea name="content" class="form-control" rows="3" placeholder="What's on your mind?" maxlength="280"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-paper-plane"></i> Post Update
+                    </button>
+                </form>
+                <hr>
+                {% endif %}
+                
+                <!-- Status Updates List -->
+                {% for status in status_updates %}
+                <div class="media mb-3">
+                    {% if status.user.profile_picture %}
+                        <img src="{{ status.user.profile_picture.url }}" alt="Profile" class="rounded-circle mr-3" style="width: 50px; height: 50px; object-fit: cover;">
+                    {% else %}
+                        <div class="bg-secondary rounded-circle mr-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                            <i class="fas fa-user text-white"></i>
+                        </div>
+                    {% endif %}
+                    <div class="media-body">
+                        <h6 class="mt-0">{{ status.user.get_full_name }} 
+                            <small class="text-muted">{{ status.created_at|timesince }} ago</small>
+                        </h6>
+                        <p>{{ status.content }}</p>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center text-muted">
+                    <i class="fas fa-rss fa-3x mb-3"></i>
+                    <p>No status updates yet.</p>
+                    {% if user == profile_user %}
+                    <p>Share your first update!</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Course Information -->
+        <div class="card shadow">
+            <div class="card-header">
+                <h5>
+                    <i class="fas fa-book"></i> 
+                    {% if profile_user.is_teacher %}Courses Teaching{% else %}Enrolled Courses{% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if profile_user.is_teacher %}
+                    {% with courses=profile_user.get_courses_as_teacher %}
+                        {% if courses %}
+                            <div class="row">
+                                {% for course in courses %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-title">{{ course.title }}</h6>
+                                            <p class="card-text small">{{ course.description|truncatewords:15 }}</p>
+                                            <span class="badge badge-info">{{ course.enrollments.count }} students</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No courses created yet.</p>
+                        {% endif %}
+                    {% endwith %}
+                {% else %}
+                    {% with enrollments=profile_user.get_enrolled_courses %}
+                        {% if enrollments %}
+                            <div class="row">
+                                {% for enrollment in enrollments %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-title">{{ enrollment.course.title }}</h6>
+                                            <p class="card-text small">{{ enrollment.course.description|truncatewords:15 }}</p>
+                                            <span class="badge badge-success">Enrolled {{ enrollment.date_enrolled|date:"M Y" }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No courses enrolled yet.</p>
+                        {% endif %}
+                    {% endwith %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

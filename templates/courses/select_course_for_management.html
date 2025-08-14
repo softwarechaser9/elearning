@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}Select Course to Manage - eLearning Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-users-cog"></i> Select Course to Manage Students</h1>
+                <div>
+                    <a href="{% url 'courses:teacher_dashboard' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-graduation-cap"></i> Your Courses</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Choose a course to manage its enrolled students:</p>
+                    
+                    {% if courses %}
+                        <div class="row">
+                            {% for course in courses %}
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-3">
+                                            {% if course.course_image %}
+                                                <img src="{{ course.course_image.url }}" alt="{{ course.title }}" class="rounded mr-3" style="width: 60px; height: 60px; object-fit: cover;">
+                                            {% else %}
+                                                <div class="bg-primary rounded mr-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                                    <i class="fas fa-graduation-cap fa-2x text-white"></i>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <h6 class="mb-1">{{ course.title }}</h6>
+                                                <small class="text-muted">{{ course.get_status_display }}</small>
+                                            </div>
+                                        </div>
+                                        
+                                        <p class="card-text small">{{ course.short_description|truncatechars:80 }}</p>
+                                        
+                                        <div class="row text-center mb-3">
+                                            <div class="col-6">
+                                                <strong class="text-primary">{{ course.enrollments.count }}</strong>
+                                                <br><small class="text-muted">Students</small>
+                                            </div>
+                                            <div class="col-6">
+                                                <strong class="text-success">{{ course.materials.count }}</strong>
+                                                <br><small class="text-muted">Materials</small>
+                                            </div>
+                                        </div>
+                                        
+                                        <a href="{% url 'courses:manage_students' course.slug %}" class="btn btn-primary btn-block">
+                                            <i class="fas fa-users-cog"></i> Manage Students
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-graduation-cap fa-4x text-muted mb-3"></i>
+                            <h4 class="text-muted">No Courses Yet</h4>
+                            <p class="text-muted">Create a course first to manage students.</p>
+                            <a href="{% url 'courses:create' %}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Create First Course
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,366 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ room.name }} - Chat Room{% endblock %}
+
+{% block extra_css %}
+<style>
+.chat-container {
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.messages-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.message-bubble {
+    max-width: 70%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    margin-bottom: 10px;
+    word-wrap: break-word;
+}
+
+.message-bubble.sent {
+    background-color: #007bff;
+    color: white;
+    margin-left: auto;
+    margin-right: 0;
+    border-bottom-right-radius: 5px;
+}
+
+.message-bubble.received {
+    background-color: #e9ecef;
+    color: #333;
+    margin-left: 0;
+    margin-right: auto;
+    border-bottom-left-radius: 5px;
+}
+
+.message-time {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    margin-top: 5px;
+}
+
+.typing-indicator {
+    display: none;
+    padding: 10px 15px;
+    font-style: italic;
+    color: #6c757d;
+}
+
+.typing-indicator.show {
+    display: block;
+}
+
+.connection-status {
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+.status-connected {
+    color: #28a745;
+    background: rgba(40, 167, 69, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+.status-connecting {
+    color: #ffc107;
+    background: rgba(255, 193, 7, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.status-disconnected {
+    color: #dc3545;
+    background: rgba(220, 53, 69, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+/* Compact header styles */
+.card-header {
+    padding: 0.5rem 1rem !important;
+}
+
+#connection-status {
+    white-space: nowrap;
+    font-size: 0.75rem;
+}
+
+.text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.flex-shrink-0 {
+    flex-shrink: 0 !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-9">
+            <!-- Chat Room Header -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0">
+                                <i class="fas fa-comments mr-2"></i>
+                                {{ room.name }}
+                                <small class="ml-2 text-white-50">• {{ room.course.title }}</small>
+                            </h6>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <small class="status-connecting text-nowrap">
+                                <i class="fas fa-circle mr-1"></i><span id="connection-text">Connecting...</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chat Messages -->
+                <div class="chat-container">
+                    <div id="messages-container" class="messages-wrapper">
+                        {% for message in chat_messages %}
+                        <div class="message-bubble {% if message.user == user %}sent{% else %}received{% endif %}" data-message-id="{{ message.id }}">
+                            {% if message.user != user %}
+                                <div class="message-sender">
+                                    <strong>{{ message.user.get_full_name|default:message.user.username }}</strong>
+                                </div>
+                            {% endif %}
+                            <div class="message-text">{{ message.content }}</div>
+                            <div class="message-time">{{ message.created_at|date:"M d, H:i" }}</div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-5 text-muted" id="no-messages">
+                            <i class="fas fa-comments fa-3x mb-3"></i>
+                            <h5>No messages yet</h5>
+                            <p>Be the first to start the conversation!</p>
+                        </div>
+                        {% endfor %}
+                        
+                        <div id="typing-indicator" class="typing-indicator">
+                            Someone is typing...
+                        </div>
+                    </div>
+                    
+                    <!-- Message Input -->
+                    <div class="p-3 bg-white border-top">
+                        <form id="message-form" class="d-flex">
+                            {% csrf_token %}
+                            <input type="text" id="message-input" class="form-control mr-2" 
+                                   placeholder="Type your message..." autocomplete="off">
+                            <button type="submit" id="send-btn" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <!-- Room Info -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6><i class="fas fa-info-circle"></i> Room Info</h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>Room:</strong> {{ room.name }}</p>
+                    <p class="mb-2"><strong>Course:</strong> {{ room.course.title }}</p>
+                    <p class="mb-2"><strong>Teacher:</strong> {{ room.course.teacher.get_full_name|default:room.course.teacher.username }}</p>
+                    <p class="mb-0"><strong>Created:</strong> {{ room.created_at|date:"M d, Y" }}</p>
+                    {% if room.description %}
+                        <hr>
+                        <p class="text-muted small">{{ room.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Back to Chat Rooms -->
+    <div class="row mt-3">
+        <div class="col-12">
+            <a href="{% url 'chat:room_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Chat Rooms
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const roomId = parseInt('{{ room.id|default:"0" }}');
+    const currentUserId = parseInt('{{ user.id|default:"0" }}');
+    
+    // Check if we have valid IDs
+    if (!roomId || !currentUserId) {
+        console.error('Invalid room ID or user ID');
+        return;
+    }
+    const messagesContainer = document.getElementById('messages-container');
+    const messageForm = document.getElementById('message-form');
+    const messageInput = document.getElementById('message-input');
+    const connectionStatus = document.getElementById('connection-status');
+    
+    // Get current user name safely
+    const currentUserName = '{{ user.get_full_name|default:user.username|escapejs }}' || 'Anonymous';
+    
+    // WebSocket connection
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/chat/room/${roomId}/`;
+    
+    let socket;
+    try {
+        socket = new WebSocket(wsUrl);
+    } catch (error) {
+        console.error('Failed to create WebSocket connection:', error);
+        connectionStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Connection Failed';
+        connectionStatus.className = 'status-disconnected';
+        return;
+    }
+    
+    socket.onopen = function(e) {
+        document.getElementById('connection-text').textContent = 'Connected';
+        connectionStatus.className = 'status-connected';
+        console.log('WebSocket connected to room:', roomId);
+    };
+    
+    socket.onclose = function(e) {
+        document.getElementById('connection-text').textContent = 'Disconnected';
+        connectionStatus.className = 'status-disconnected';
+        
+        // Try to reconnect after 3 seconds
+        setTimeout(function() {
+            document.getElementById('connection-text').textContent = 'Reconnecting...';
+            location.reload();
+        }, 3000);
+    };
+    
+    socket.onerror = function(e) {
+        document.getElementById('connection-text').textContent = 'Error';
+        connectionStatus.className = 'status-disconnected';
+        console.error('WebSocket error:', e);
+    };
+    
+    socket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        console.log('Received WebSocket message:', data);
+        
+        if (data.type === 'message') {
+            // Only add messages from OTHER users to avoid duplicates
+            if (data.user_id !== currentUserId) {
+                addMessageToChat(data, true);
+            }
+        } else if (data.type === 'user_joined') {
+            console.log('User joined:', data.message);
+        } else if (data.type === 'user_left') {
+            console.log('User left:', data.message);
+        } else if (data.type === 'typing') {
+            // Handle typing indicator
+        }
+    };
+    
+    // Send message
+    messageForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const message = messageInput.value.trim();
+        
+        if (message) {
+            // Immediately add the message to chat for the sender
+            addMessageToChat({
+                message: message,
+                user: currentUserName,
+                user_id: currentUserId,
+                created_at: new Date().toLocaleString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                })
+            }, true);
+            
+            // Send to WebSocket
+            socket.send(JSON.stringify({
+                'type': 'message',
+                'message': message
+            }));
+            messageInput.value = '';
+        }
+    });
+    
+    // Add message to chat
+    function addMessageToChat(data, shouldScroll = true) {
+        // Remove empty state if it exists
+        const emptyDiv = messagesContainer.querySelector('.text-center.py-5.text-muted');
+        if (emptyDiv && emptyDiv.id !== 'typing-indicator') {
+            emptyDiv.remove();
+        }
+        
+        const messageDiv = document.createElement('div');
+        const isCurrentUser = data.user_id === currentUserId;
+        
+        messageDiv.className = `message-bubble ${isCurrentUser ? 'sent' : 'received'}`;
+        
+        let messageHTML = '';
+        if (!isCurrentUser) {
+            messageHTML += `<div class="message-sender"><strong>${data.user}</strong></div>`;
+        }
+        messageHTML += `<div class="message-text">${data.message}</div>`;
+        
+        // Handle timestamp
+        let timeStr = data.created_at;
+        if (!timeStr) {
+            timeStr = new Date().toLocaleString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        }
+        messageHTML += `<div class="message-time">${timeStr}</div>`;
+        
+        messageDiv.innerHTML = messageHTML;
+        
+        // Insert before typing indicator
+        const typingIndicator = document.getElementById('typing-indicator');
+        messagesContainer.insertBefore(messageDiv, typingIndicator);
+        
+        if (shouldScroll) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }
+    
+    // Auto-scroll to bottom on page load and focus on input
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    messageInput.focus();
+    
+    // Handle Enter key
+    messageInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            messageForm.dispatchEvent(new Event('submit'));
+        }
+    });
+});
+</script>
+{% endblock %}

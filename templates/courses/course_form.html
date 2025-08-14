@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+    {% if form.instance.pk %}Edit Course{% else %}Create Course{% endif %} - eLearning Platform
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-graduation-cap"></i>
+                        {% if form.instance.pk %}
+                            Edit Course: {{ form.instance.title }}
+                        {% else %}
+                            Create New Course
+                        {% endif %}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Basic Information -->
+                        <div class="form-section">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-info-circle"></i> Basic Information
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ form.title|as_crispy_field }}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ form.category|as_crispy_field }}
+                                </div>
+                            </div>
+                            {{ form.short_description|as_crispy_field }}
+                            {{ form.description|as_crispy_field }}
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- Course Details -->
+                        <div class="form-section">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-cog"></i> Course Details
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ form.difficulty_level|as_crispy_field }}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ form.status|as_crispy_field }}
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ form.max_students|as_crispy_field }}
+                                </div>
+                                <div class="col-md-6">
+                                    {{ form.course_image|as_crispy_field }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- Pricing -->
+                        <div class="form-section">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-dollar-sign"></i> Pricing
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    {{ form.is_free|as_crispy_field }}
+                                </div>
+                                <div class="col-md-6" id="price-field">
+                                    {{ form.price|as_crispy_field }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- Additional Information -->
+                        <div class="form-section">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-plus-circle"></i> Additional Information
+                            </h5>
+                            {{ form.prerequisites|as_crispy_field }}
+                            {{ form.learning_outcomes|as_crispy_field }}
+                            {{ form.tags|as_crispy_field }}
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- SEO -->
+                        <div class="form-section">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-search"></i> SEO (Optional)
+                            </h5>
+                            {{ form.meta_description|as_crispy_field }}
+                        </div>
+                        
+                        <!-- Submit Buttons -->
+                        <div class="form-actions mt-4">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-save"></i>
+                                {% if form.instance.pk %}Update Course{% else %}Create Course{% endif %}
+                            </button>
+                            <a href="{% url 'courses:list' %}" class="btn btn-secondary btn-lg ml-2">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            {% if form.instance.pk %}
+                            <a href="{% url 'courses:detail' form.instance.slug %}" class="btn btn-info btn-lg ml-2">
+                                <i class="fas fa-eye"></i> View Course
+                            </a>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Show/hide price field based on is_free checkbox
+    function togglePriceField() {
+        if ($('#id_is_free').is(':checked')) {
+            $('#price-field').hide();
+            $('#id_price').val('0.00');
+        } else {
+            $('#price-field').show();
+        }
+    }
+    
+    // Initial state
+    togglePriceField();
+    
+    // Listen for changes
+    $('#id_is_free').change(togglePriceField);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Search Users - eLearning Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-search"></i> Search Users</h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Search Users</li>
+                    </ol>
+                </nav>
+            </div>
+
+            <!-- Search Form -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-filter"></i> Search Filters</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get">
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ search_form.search_query|as_crispy_field }}
+                            </div>
+                            <div class="col-md-3">
+                                {{ search_form.user_type|as_crispy_field }}
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    {{ search_form.is_verified }}
+                                    <label for="{{ search_form.is_verified.id_for_label }}" class="form-check-label">
+                                        {{ search_form.is_verified.label }}
+                                    </label>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-block">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Search Results -->
+            {% if users %}
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-users"></i> Search Results ({{ users|length }} found)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for found_user in users %}
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        {% if found_user.profile_picture %}
+                                            <img src="{{ found_user.profile_picture.url }}" 
+                                                 alt="Profile" class="rounded-circle mb-3" 
+                                                 style="width: 80px; height: 80px; object-fit: cover;">
+                                        {% else %}
+                                            <div class="bg-secondary rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center" 
+                                                 style="width: 80px; height: 80px;">
+                                                <i class="fas fa-user fa-2x text-white"></i>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        <h6 class="card-title">{{ found_user.get_full_name|default:found_user.username }}</h6>
+                                        <p class="text-muted small mb-2">@{{ found_user.username }}</p>
+                                        
+                                        <span class="badge badge-{% if found_user.is_teacher %}warning{% else %}info{% endif %} mb-2">
+                                            <i class="fas fa-{% if found_user.is_teacher %}chalkboard-teacher{% else %}user-graduate{% endif %}"></i>
+                                            {{ found_user.get_user_type_display }}
+                                        </span>
+                                        
+                                        {% if found_user.is_verified %}
+                                            <span class="badge badge-success mb-2">
+                                                <i class="fas fa-check-circle"></i> Verified
+                                            </span>
+                                        {% endif %}
+                                        
+                                        {% if found_user.bio %}
+                                            <p class="card-text small">{{ found_user.bio|truncatechars:80 }}</p>
+                                        {% endif %}
+                                        
+                                        <div class="btn-group btn-group-sm w-100">
+                                            <a href="{% url 'accounts:profile' found_user.username %}" class="btn btn-outline-primary">
+                                                <i class="fas fa-user"></i> Profile
+                                            </a>
+                                            <a href="{% url 'chat:private_detail' found_user.id %}" class="btn btn-outline-success">
+                                                <i class="fas fa-comment"></i> Message
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Pagination -->
+                        {% if is_paginated %}
+                        <div class="d-flex justify-content-center mt-4">
+                            <nav aria-label="Search results pagination">
+                                <ul class="pagination">
+                                    {% if page_obj.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page=1{% if request.GET.search_query %}&search_query={{ request.GET.search_query }}{% endif %}{% if request.GET.user_type %}&user_type={{ request.GET.user_type }}{% endif %}{% if request.GET.is_verified %}&is_verified=on{% endif %}">First</a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search_query %}&search_query={{ request.GET.search_query }}{% endif %}{% if request.GET.user_type %}&user_type={{ request.GET.user_type }}{% endif %}{% if request.GET.is_verified %}&is_verified=on{% endif %}">Previous</a>
+                                        </li>
+                                    {% endif %}
+                                    
+                                    <li class="page-item active">
+                                        <span class="page-link">
+                                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                                        </span>
+                                    </li>
+                                    
+                                    {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.search_query %}&search_query={{ request.GET.search_query }}{% endif %}{% if request.GET.user_type %}&user_type={{ request.GET.user_type }}{% endif %}{% if request.GET.is_verified %}&is_verified=on{% endif %}">Next</a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.search_query %}&search_query={{ request.GET.search_query }}{% endif %}{% if request.GET.user_type %}&user_type={{ request.GET.user_type }}{% endif %}{% if request.GET.is_verified %}&is_verified=on{% endif %}">Last</a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% elif request.GET.search_query %}
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-search fa-4x text-muted mb-4"></i>
+                        <h4>No Results Found</h4>
+                        <p class="text-muted">Try searching with different keywords or adjust your filters.</p>
+                    </div>
+                </div>
+            {% else %}
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-users fa-4x text-muted mb-4"></i>
+                        <h4>Search for Users</h4>
+                        <p class="text-muted">Use the search form above to find students and teachers by name, username, or email.</p>
+                        <div class="row mt-4">
+                            <div class="col-md-6 offset-md-3">
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-info-circle"></i> Search Tips:</h6>
+                                    <ul class="mb-0 text-left">
+                                        <li>Search by name, username, or email</li>
+                                        <li>Filter by user type (Student/Teacher)</li>
+                                        <li>Show only verified users</li>
+                                        <li>Click on profiles to view details</li>
+                                        <li>Send direct messages to other users</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

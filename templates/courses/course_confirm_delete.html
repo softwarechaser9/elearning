@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Course - {{ object.title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-trash"></i> Delete Course: {{ object.title }}
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Warning:</strong> This action cannot be undone! Deleting this course will:
+                    <ul class="mt-2 mb-0">
+                        <li>Remove all course materials and content</li>
+                        <li>Delete all student enrollments</li>
+                        <li>Remove all feedback and ratings</li>
+                        <li>Delete all progress data</li>
+                    </ul>
+                </div>
+                
+                <div class="course-info bg-light p-3 rounded mb-4">
+                    <h5>{{ object.title }}</h5>
+                    <p class="text-muted mb-2">{{ object.description|truncatewords:20 }}</p>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <i class="fas fa-users"></i>
+                                {{ object.enrollments.count }} student{{ object.enrollments.count|pluralize }} enrolled
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <i class="fas fa-file-alt"></i>
+                                {{ object.materials.count }} material{{ object.materials.count|pluralize }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <a href="{% url 'courses:detail' object.slug %}" class="btn btn-secondary btn-block">
+                                <i class="fas fa-arrow-left"></i> Cancel
+                            </a>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="submit" class="btn btn-danger btn-block">
+                                <i class="fas fa-trash"></i> Yes, Delete Course
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

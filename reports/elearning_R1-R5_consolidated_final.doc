@@ -1,0 +1,550 @@
+eLearning Django Application – Consolidated Technical Report (R1–R5)
+
+Note on Formatting: This document is authored to be Word-compatible with clear headings and paragraphs. Set body font to Times New Roman, 12pt, 1.15 line spacing in your editor if it does not auto-apply. Code excerpts included below are real excerpts from this repository and are explicitly excluded from the requested word count.
+
+Executive Summary
+This report consolidates the full implementation of the eLearning Django application, explicitly mapping Requirements R1–R5 to the actual code base present in this repository. It covers user and permission architecture, course lifecycle, enrollments, feedback, real-time chat via Channels/Redis, notifications via signals, REST API coverage using Django REST Framework (DRF), and server-side tests. Installation, testing, and deployment instructions are included along with default credentials. The previously separated R5 addendum is now integrated into the R5 section; its contents remain in reports for traceability but are fully explained here.
+
+Environment and Installation
+- Tech stack
+  - Django 4.2.x
+  - Django REST Framework
+  - Django Channels
+  - Redis (for channels layer)
+  - SQLite (development) / PostgreSQL (production ready)
+  - Bootstrap frontend, templates in templates/
+
+- Configuration
+  - Environment variables are stored in .env. Example:
+    .env
+    SECRET_KEY=...
+    DEBUG=True
+    DATABASE_URL=sqlite:///db.sqlite3
+    REDIS_URL=redis://localhost:6379
+    ALLOWED_HOSTS=127.0.0.1,localhost
+
+- Setup (development)
+  1) Create and activate a virtual environment, install requirements:
+     pip install -r requirements.txt
+  2) Apply migrations:
+     python manage.py migrate
+  3) (Optional) Load sample data:
+     python manage.py loaddata sample_data.json
+  4) Ensure Redis is running:
+     redis-server
+  5) Run the server:
+     python manage.py runserver
+
+- Default credentials (from README)
+  - Admin: username admin / password admin123
+  - Sample Teacher: username teacher1 / password teacher123
+  - Sample Student: username student1 / password student123
+
+- Running tests
+  - All apps:
+    python manage.py test
+  - Per app:
+    python manage.py test accounts
+    python manage.py test courses
+    python manage.py test chat
+    python manage.py test api
+
+- Deployment notes
+  - Use ASGI entrypoint (elearning/asgi.py) for Channels.
+  - Configure channels_redis with your REDIS_URL for production.
+  - Switch DATABASE_URL to PostgreSQL for production, configure ALLOWED_HOSTS, set DEBUG=False, run collectstatic, and use a proper process manager (e.g., Daphne/Uvicorn + Nginx).
+
+Architecture Overview
+- Apps
+  - accounts/: custom User model, status updates, profiles, forms, tests
+  - courses/: courses, materials, enrollments, feedback, notifications, signals, tests
+  - chat/: real-time chat rooms and private messaging, consumers, views, tests
+  - api/: DRF serializers and views, API urls, tests
+  - elearning/: project settings, URLs, ASGI/WSGI
+- URL routing
+  - Project URLs: elearning/urls.py include accounts/, courses/, chat/, api/
+    Real code excerpt:
+    elearning/urls.py
+    from accounts.views import home_view, dashboard_view
+    urlpatterns = [
+        path('admin/', admin.site.urls),
+        path('test/', TemplateView.as_view(template_name='test_navigation.html'), name='test_navigation'),
+        path('', dashboard_view, name='home'),
+        path('accounts/', include('accounts.urls')),
+        path('courses/', include('courses.urls')),
+        path('chat/', include('chat.urls')),
+        path('api/', include('api.urls')),
+        path('dashboard/', dashboard_view, name='dashboard'),
+    ]
+
+R1 – Functional Requirements (a–l) Mapped to Real Code
+R1.a Users create accounts
+- Implemented via API registration endpoint and serializer.
+  - Serializer: api/serializers.py → UserRegistrationSerializer
+  - View: api/views.py → register
+  - URL: api/urls.py → path('auth/register/', ...)
+  Real code excerpts:
+  api/serializers.py
+  class UserRegistrationSerializer(serializers.ModelSerializer):
+      password = serializers.CharField(write_only=True, min_length=8)
+      password_confirm = serializers.CharField(write_only=True)
+      ...
+      def validate(self, data):
+          if data['password'] != data['password_confirm']:
+              raise serializers.ValidationError("Passwords do not match")
+          return data
+      def create(self, validated_data):
+          validated_data.pop('password_confirm')
+          password = validated_data.pop('password')
+          user = User.objects.create_user(**validated_data)
+          user.set_password(password)
+          user.save()
+          return user
+
+  api/views.py
+  @api_view(['POST'])
+  @permission_classes([AllowAny])
+  def register(request):
+      serializer = UserRegistrationSerializer(data=request.data)
+      if serializer.is_valid():
+          user = serializer.save()
+          token, created = Token.objects.get_or_create(user=user)
+          return Response({'user': UserSerializer(user).data, 'token': token.key}, status=201)
+      return Response(serializer.errors, status=400)
+
+- The custom user model lives in accounts/models.py → User (extends AbstractUser; adds user_type, email unique, etc.).
+
+R1.b Users log in and log out
+- Token-based login/logout endpoints.
+  - Login: api/views.py → login (authenticate → Token)
+  - Logout: api/views.py → logout (deletes token)
+  - URLs: api/urls.py → 'auth/login/', 'auth/logout/', 'auth/token/'
+  Real code excerpt:
+  api/views.py
+  @api_view(['POST'])
+  @permission_classes([AllowAny])
+  def login(request):
+      username = request.data.get('username')
+      password = request.data.get('password')
+      user = authenticate(username=username, password=password)
+      if user:
+          token, _ = Token.objects.get_or_create(user=user)
+          return Response({'user': UserSerializer(user).data, 'token': token.key})
+      return Response({'error': 'Invalid credentials'}, status=401)
+
+R1.c Teachers search for students and other teachers
+- Implemented via user listing with search/filter.
+  - View: api/views.py → UserListView (filters.SearchFilter, DjangoFilterBackend, Ordering)
+  - URL: api/urls.py → 'users/'
+  Real code excerpt:
+  api/views.py
+  class UserListView(generics.ListAPIView):
+      queryset = User.objects.all().order_by('username')
+      filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
+      search_fields = ['username', 'first_name', 'last_name', 'email']
+      filterset_fields = ['user_type', 'is_active']
+
+- Additionally, chat/views.py provides user search UI for private chat initiation for logged-in users.
+
+R1.d Teachers add new courses
+- Teachers-only create via API; server sets teacher=request.user.
+  - View: api/views.py → CourseListView (ListCreateAPIView, IsTeacherOrReadOnly)
+  - Serializer: api/serializers.py → CourseSerializer
+  Real code excerpts:
+  api/views.py
+  class CourseListView(generics.ListCreateAPIView):
+      queryset = Course.objects.filter(status='published')
+      permission_classes = [IsAuthenticatedOrReadOnly, IsTeacherOrReadOnly]
+      def perform_create(self, serializer):
+          serializer.save(teacher=self.request.user)
+
+  api/serializers.py
+  class CourseSerializer(serializers.ModelSerializer):
+      teacher = UserSerializer(read_only=True)
+      enrollment_count = serializers.SerializerMethodField()
+      def get_enrollment_count(self, obj):
+          return obj.enrollments.count()
+
+- HTML/class-based views also exist for full web UI (courses/views.py → Course create/edit views with TeacherRequiredMixin).
+
+R1.e Students enroll themselves on a course
+- Web view: courses/views.py → enroll_course
+- API view: api/views.py → enroll_in_course
+- Enrollment model: courses/models.py → Enrollment (unique_together on student, course; is_active, is_blocked flags)
+- URLs:
+  - Web: courses/urls.py → path('course/<slug:slug>/enroll/', ...)
+  - API: api/urls.py → path('courses/<int:course_id>/enroll/', ...)
+  Real code excerpts:
+  courses/models.py
+  class Enrollment(models.Model):
+      student = models.ForeignKey(User, related_name='enrollments', limit_choices_to={'user_type': 'student'})
+      course = models.ForeignKey(Course, related_name='enrollments')
+      is_active = models.BooleanField(default=True)
+      is_blocked = models.BooleanField(default=False)
+      class Meta:
+          unique_together = ('student', 'course')
+
+  courses/views.py
+  @login_required
+  def enroll_course(request, slug):
+      course = get_object_or_404(Course, slug=slug, status='published')
+      can_enroll, message = course.can_enroll(request.user)
+      if can_enroll:
+          enrollment, created = Enrollment.objects.get_or_create(student=request.user, course=course, defaults={'is_active': True})
+          ...
+
+  api/views.py
+  @api_view(['POST'])
+  @permission_classes([IsAuthenticated])
+  def enroll_in_course(request, course_id):
+      course = Course.objects.get(pk=course_id)
+      enrollment, created = Enrollment.objects.get_or_create(student=request.user, course=course)
+      ...
+
+- Business rule gate is in Course.can_enroll(user) with checks: role is student, course published, capacity, blocked status, duplicates.
+
+R1.f Students leave feedback for a course
+- Model: courses/models.py → Feedback (unique_together course+student; rating with validators)
+- Web view: courses/views.py → submit_feedback with enrollment validation and duplicate prevention
+- API: api/views.py → FeedbackListView/FeedbackDetailView; serializer FeedbackSerializer
+- URLs: courses/urls.py (submit_feedback), api/urls.py (feedback endpoints)
+  Real code excerpts:
+  courses/models.py
+  class Feedback(models.Model):
+      course = models.ForeignKey(Course, related_name='feedbacks')
+      student = models.ForeignKey(User, related_name='course_feedbacks', limit_choices_to={'user_type': 'student'})
+      rating = models.PositiveIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+      title = models.CharField(max_length=200)
+      content = models.TextField()
+      class Meta:
+          unique_together = ('course', 'student')
+
+  courses/views.py
+  @login_required
+  def submit_feedback(request, slug):
+      if not course.enrollments.filter(student=request.user, is_active=True).exists():
+          messages.error(...)
+          return redirect(...)
+      if Feedback.objects.filter(course=course, student=request.user).exists():
+          messages.error(...)
+          return redirect(...)
+      if request.method == 'POST':
+          rating = int(request.POST.get('rating'))
+          Feedback.objects.create(course=course, student=request.user, rating=rating, title=..., content=...)
+
+R1.g Users chat in real time
+- Channels Consumers implement chat rooms and private chats.
+  - chat/consumers.py → ChatRoomConsumer, PrivateChatConsumer
+  - chat/models.py (not shown here) define ChatRoom, ChatMessage, PrivateChat, PrivateMessage, memberships
+  - chat/routing.py exposes ws routes; ASGI configured in elearning/asgi.py
+  Real code excerpts:
+  chat/consumers.py
+  class ChatRoomConsumer(AsyncWebsocketConsumer):
+      async def connect(self):
+          self.room_id = self.scope['url_route']['kwargs']['room_id']
+          self.user = self.scope.get('user')
+          if self.user.is_anonymous: await self.close()
+          has_permission = await self.check_room_permission()
+          if not has_permission: await self.close()
+          await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+          await self.accept()
+      @database_sync_to_async
+      def check_room_permission(self):
+          room = ChatRoom.objects.get(id=self.room_id)
+          if self.user.user_type == 'teacher' and room.course.teacher == self.user: return True
+          elif self.user.user_type == 'student':
+              return room.course.enrollments.filter(student=self.user, is_active=True).exists()
+          return False
+
+  class PrivateChatConsumer(AsyncWebsocketConsumer):
+      async def connect(self):
+          self.other_user_id = self.scope['url_route']['kwargs']['user_id']
+          user_ids = sorted([self.user.id, int(self.other_user_id)])
+          self.room_group_name = f'private_{user_ids[0]}_{user_ids[1]}'
+          await self.get_or_create_private_chat()
+          await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+
+- Views to create room, list rooms, and memberships exist in chat/views.py (e.g., create_chat_room adds all enrolled students as participants).
+
+R1.h Teachers remove/block students
+- Implemented by flags on Enrollment with teacher-only actions, plus notifications.
+  - Web views: courses/views.py → block_student, unblock_student (require POST, teacher ownership)
+  - Model: courses/models.py → Enrollment.is_blocked, is_active
+  Real code excerpts:
+  courses/views.py
+  @login_required
+  @require_http_methods(["POST"])
+  def block_student(request, slug, student_id):
+      course = get_object_or_404(Course, slug=slug, teacher=request.user)
+      enrollment = Enrollment.objects.get(student=student, course=course)
+      enrollment.is_blocked = True
+      enrollment.is_active = False
+      enrollment.save()
+      Notification.objects.create(..., notification_type='system', title='Course Access Blocked', ...)
+
+  @login_required
+  @require_http_methods(["POST"])
+  def unblock_student(request, slug, student_id):
+      ... set is_blocked=False, is_active=True, notify student ...
+
+- These actions also push real-time notifications to the affected student via Channels.
+
+R1.i Users add status updates to their home page
+- Model: accounts/models.py → StatusUpdate
+- API: api/views.py → StatusUpdateListView, StatusUpdateDetailView; serializer StatusUpdateSerializer
+- URL: api/urls.py → 'status-updates/'
+  Real code excerpts:
+  accounts/models.py
+  class StatusUpdate(models.Model):
+      user = models.ForeignKey(User, related_name='status_updates')
+      content = models.TextField(max_length=280)
+      created_at = models.DateTimeField(auto_now_add=True)
+
+  api/views.py
+  class StatusUpdateListView(generics.ListCreateAPIView):
+      queryset = StatusUpdate.objects.all().order_by('-created_at')
+      def perform_create(self, serializer): serializer.save(user=self.request.user)
+
+R1.j Teachers add files (materials) and they appear on course page
+- Model: courses/models.py → CourseMaterial (FileField or external link; is_downloadable, is_public; metadata)
+- Teachers-only CRUD views: courses/views.py → CourseMaterialCreateView/UpdateView/DeleteView/ListView
+- API: api/views.py → CourseMaterialListView/DetailView; serializer CourseMaterialSerializer
+- Templates display materials on the course detail page and allow downloads if permitted.
+  Real code excerpts:
+  courses/models.py
+  class CourseMaterial(models.Model):
+      course = models.ForeignKey(Course, related_name='materials')
+      file = models.FileField(upload_to=course_material_upload_path, blank=True)
+      external_link = models.URLField(blank=True)
+      is_downloadable = models.BooleanField(default=True)
+
+  courses/views.py (teachers only)
+  class CourseMaterialCreateView(LoginRequiredMixin, TeacherRequiredMixin, CreateView):
+      def form_valid(self, form):
+          self.course = get_object_or_404(Course, slug=self.kwargs['slug'], teacher=self.request.user)
+          form.instance.course = self.course
+          response = super().form_valid(form)
+          enrolled_students = User.objects.filter(enrollments__course=self.course, enrollments__is_active=True, user_type='student').distinct()
+          for student in enrolled_students:
+              Notification.objects.create(recipient=student, sender=self.request.user, notification_type='material', ...)
+          return response
+
+- Access via template: templates/courses/course_detail.html lists materials; students can mark completion which updates Enrollment progress.
+
+R1.k Notify teacher when a student enrolls
+- Two mechanisms:
+  1) Direct creation in enroll_course web view (courses/views.py) when created=True.
+  2) Signal: courses/signals.py → notify_teacher_new_enrollment (post_save on Enrollment with created and is_active).
+  Real code excerpt:
+  courses/signals.py
+  @receiver(post_save, sender=Enrollment)
+  def notify_teacher_new_enrollment(...):
+      if created and instance.is_active:
+          Notification.objects.create(recipient=teacher, sender=student, notification_type='enrollment', ...)
+          async_to_sync(channel_layer.group_send)(f"notifications_{teacher.id}", { 'type': 'notification_message', 'data': {...}})
+
+R1.l Notify students when new material is added
+- Implemented via post_save signal on CourseMaterial.
+  - courses/signals.py → notify_students_new_material (bulk creates Notification for all active, unblocked enrollments; pushes via Channels groups notifications_{user.id})
+  Real code excerpt:
+  courses/signals.py
+  @receiver(post_save, sender=CourseMaterial)
+  def notify_students_new_material(...):
+      if created:
+          enrolled_students = User.objects.filter(enrollments__course=course, enrollments__is_active=True, enrollments__is_blocked=False)
+          notifications = [Notification(... recipient=student, notification_type='material', ... ) for student in enrolled_students]
+          Notification.objects.bulk_create(notifications)
+          for notification in notifications:
+              async_to_sync(channel_layer.group_send)(f"notifications_{notification.recipient.id}", { 'type': 'notification_message', 'data': {...}})
+
+R2 – Engineering Practices and Framework Usage
+R2.a Correct use of models and migrations
+- The application defines normalized models with proper relationships and constraints:
+  - accounts/models.py → User (custom user), StatusUpdate, UserProfile
+  - courses/models.py → Course, CourseMaterial, Enrollment, Feedback, Notification, MaterialCompletion, CourseCompletion
+- Constraints/indexes for integrity and performance:
+  - unique_together: Enrollment(student, course), Feedback(course, student), MaterialCompletion(student, material), CourseCompletion(student, course)
+  - Indexes: Course(status, -created_at), Course(teacher, -created_at); Enrollment(student, -date_enrolled), Enrollment(course, is_active); Feedback(course, -created_at), Feedback(rating, -created_at); Notification(recipient, -created_at), Notification(is_read, -created_at)
+- Model methods encapsulate business logic (e.g., Course.can_enroll, Enrollment.calculate_progress/update_progress).
+
+R2.b Correct use of forms, validators, and serialization
+- Forms (web): courses/forms.py → CourseForm, CourseMaterialForm (file validation), FeedbackForm (select 1–5 rating), EnrollmentForm
+- Validators: Feedback.rating bounds, Course.max_students bounds, Enrollment.progress bounds, file size/type checks in forms; serializers enforce ownership and read-only fields.
+- Serialization (DRF): api/serializers.py includes nested UserSerializer in many payloads; read_only fields for server-managed values; UserRegistrationSerializer enforces password rules and confirmation.
+
+R2.c Correct use of DRF
+- Generic class-based API views: ListCreateAPIView, RetrieveUpdateDestroyAPIView, RetrieveUpdateAPIView, ListAPIView.
+- Permissions: custom IsOwnerOrReadOnly (object-level ownership across user/student/teacher patterns), IsTeacherOrReadOnly for course creation/updates; IsAuthenticated/IsAuthenticatedOrReadOnly applied appropriately.
+- Filters/search/order: SearchFilter, OrderingFilter, DjangoFilterBackend wired to user, course, materials, enrollments, feedback, and notifications endpoints.
+- Token authentication supported via rest_framework.authtoken.
+
+R2.d Correct use of URL routing
+- Project routing delegates to app-specific urlconfs. Core mapping is in elearning/urls.py, and the REST API mapping is in api/urls.py.
+  Real code excerpt:
+  api/urls.py
+  urlpatterns = [
+      path('auth/register/', views.register, name='register'),
+      path('auth/login/', views.login, name='login'),
+      path('auth/logout/', views.logout, name='logout'),
+      path('auth/token/', obtain_auth_token, name='api_token_auth'),
+      path('users/', views.UserListView.as_view(), name='user-list'),
+      path('users/<int:pk>/', views.UserDetailView.as_view(), name='user-detail'),
+      path('profiles/', views.UserProfileListView.as_view(), name='profile-list'),
+      path('profiles/<int:pk>/', views.UserProfileDetailView.as_view(), name='profile-detail'),
+      path('status-updates/', views.StatusUpdateListView.as_view(), name='status-list'),
+      path('status-updates/<int:pk>/', views.StatusUpdateDetailView.as_view(), name='status-detail'),
+      path('courses/', views.CourseListView.as_view(), name='course-list'),
+      path('courses/<int:pk>/', views.CourseDetailView.as_view(), name='course-detail'),
+      path('courses/<int:course_id>/enroll/', views.enroll_in_course, name='course-enroll'),
+      path('materials/', views.CourseMaterialListView.as_view(), name='material-list'),
+      path('materials/<int:pk>/', views.CourseMaterialDetailView.as_view(), name='material-detail'),
+      path('enrollments/', views.EnrollmentListView.as_view(), name='enrollment-list'),
+      path('enrollments/<int:pk>/', views.EnrollmentDetailView.as_view(), name='enrollment-detail'),
+      path('feedback/', views.FeedbackListView.as_view(), name='feedback-list'),
+      path('feedback/<int:pk>/', views.FeedbackDetailView.as_view(), name='feedback-detail'),
+      path('notifications/', views.NotificationListView.as_view(), name='notification-list'),
+      path('notifications/<int:pk>/', views.NotificationDetailView.as_view(), name='notification-detail'),
+      path('notifications/<int:pk>/mark-read/', views.mark_notification_read, name='notification-mark-read'),
+  ]
+
+R2.e Appropriate use of unit testing
+- Tests exist across apps and cover models, views, and API endpoints. Representative files:
+  - api/tests.py → APIAuthenticationTest, UserAPITest, CourseAPITest, Feedback and Enrollment tests
+  - chat/tests.py → model tests for PrivateChat/PrivateMessage/ChatRoom, view tests for private chat screens and user search, integration flow for chat models
+  - courses/tests.py → course creation and access, enrollment flow (including blocked), materials, feedback; notifications where applicable
+  - accounts/tests.py → status update model tests and related behaviors
+- These tests validate the behavior required by R1 and R4, and enforce permission and validation rules from R2.
+
+R3 – Database Model and Relationships
+- Accounts
+  - User (custom) extends AbstractUser adding: email unique, user_type (student/teacher), profile_picture, bio, professional fields; helpers is_teacher/is_student, relationship helpers for courses and enrollments.
+  - StatusUpdate: FK to User, content, timestamps, visibility flag; ordered by -created_at.
+  - UserProfile: OneToOne to User with social links and preferences.
+- Courses and Learning
+  - Course: FK teacher (User, limited to teachers), title/slug/description, status (draft/published/archived), capacity controls (max_students), pricing, outcomes, media, SEO fields; indexes on status/date and teacher/date; can_enroll() enforces business rules.
+  - CourseMaterial: FK course, file or external link, type, order, is_downloadable/public, metadata; uploaded under courses/<slug>/materials/.
+  - Enrollment: FK student and course; unique_together; flags (is_active, is_blocked); progress tracking, date_completed and certificate flags; indexes on student/date and course/is_active; methods calculate_progress(), update_progress().
+  - Feedback: FK to course and student; unique per student per course; rating bounds; helpful_votes; ordered by -created_at with indexes for course/rating.
+  - Notification: recipient/sender, notification_type, title/message, optional course, is_read/is_important, indexed for recipient/is_read.
+  - MaterialCompletion, CourseCompletion: track granular and overall completion with uniqueness constraints.
+- Chat
+  - ChatRoom, ChatMessage, ChatRoomMembership for course-bound group chat; PrivateChat and PrivateMessage for one-to-one.
+- This schema is normalized and directly encodes the relationships needed for permissions, visibility, and performance (via indexes).
+
+R4 – REST API Design and Coverage
+- Authentication
+  - POST /api/auth/register/ → register a new user (UserRegistrationSerializer)
+  - POST /api/auth/login/ → token-based login
+  - POST /api/auth/logout/ → token revocation
+  - POST /api/auth/token/ → DRF authtoken obtain
+- Users and Profiles
+  - GET /api/users/ with search and filters (username, first_name, last_name, email; user_type, is_active)
+  - GET/PATCH /api/users/{id}/ for user self-updates with IsOwnerOrReadOnly
+  - GET/POST /api/profiles/ and GET/PUT/DELETE /api/profiles/{id}/
+- Status Updates
+  - GET/POST /api/status-updates/; GET/PUT/DELETE /api/status-updates/{id}/; creator is request.user
+- Courses and Materials
+  - GET/POST /api/courses/ (POST teachers only); GET/PUT/DELETE /api/courses/{id}/ with IsOwnerOrReadOnly
+  - POST /api/courses/{id}/enroll/ (students enroll themselves)
+  - GET/POST /api/materials/; GET/PUT/DELETE /api/materials/{id}/ with filters by course/material_type
+- Enrollments
+  - GET/POST /api/enrollments/ → scope based on user.role: students see their own; teachers see their course enrollments
+  - GET/PUT/DELETE /api/enrollments/{id}/ with IsOwnerOrReadOnly
+- Feedback
+  - GET/POST /api/feedback/ and GET/PUT/DELETE /api/feedback/{id}/
+- Notifications
+  - GET /api/notifications/ (scoped to recipient=request.user)
+  - GET/DELETE /api/notifications/{id}/
+  - POST /api/notifications/{id}/mark-read/
+- Filtering and pagination are applied where appropriate via DRF settings/backends.
+
+R5 – Server-side Tests and Quality Assurance (Consolidated)
+- Scope and intent
+  The test suites validate authentication flows, CRUD of core resources (courses, enrollments, materials, feedback), permissions (teacher vs student), enrollment constraints (duplicates, blocked, capacity), and chat domain flows. This covers R1 behaviors, R2 validations, and R4 API contracts.
+
+- Highlights by area (real tests in repo)
+  1) Authentication/API tokens (api/tests.py → APIAuthenticationTest)
+     - user registration returns token and user data
+     - invalid registration rejected
+     - login returns token; invalid credentials 401
+     - logout deletes token
+  2) Users API (api/tests.py → UserAPITest)
+     - listing users (pagination)
+     - get/update detail with authorization
+  3) Courses API (api/tests.py → CourseAPITest)
+     - list/detail course endpoints
+     - teacher can create course; student token cannot
+     - enroll endpoint enrolls student or returns already-enrolled
+  4) Chat domain (chat/tests.py)
+     - model tests: PrivateChat, PrivateMessage, ChatRoom
+     - view protections for private chat list/detail (requires login)
+     - integration flow: create chat, send messages, ordering by created_at
+  5) Courses domain tests (courses/tests.py)
+     - course CRUD and visibility
+     - enrollment lifecycle including block/unblock and progress calculations
+     - feedback creation with rating bounds and ownership
+     - material CRUD and visibility, metadata, and completion effects
+  6) Accounts domain tests (accounts/tests.py)
+     - StatusUpdate model behavior and constraints
+
+- On WebSocket/real-time behavior
+  The application’s Channels consumers implement permission-checked connect flows and persistence of messages. While the majority of repository tests focus on HTTP endpoints and model/view logic, the chat integration tests validate the domain behaviors. Production real-time behavior is exercised via ASGI + Redis; consumer logic ensures only enrolled students and the course teacher join course rooms, and private chat rooms are deterministic by user IDs.
+
+- Why there was an elearning_r5_addendum and how it is handled now
+  The earlier documentation separated a dedicated R5 addendum to give reviewers a focused, step-by-step view of tests and their coverage matrix, including edge cases (blocked enrollment, duplicate feedback, file validation, pagination, and filter behaviors). In this consolidated report, we have integrated those details directly into this R5 section to keep all requirement discussions self-contained. The original addendum file remains under reports/ for traceability, but this section supersedes it. If you prefer the addendum format, it can still be consulted; functionally, this section now includes its content.
+
+Security, Permissions, and Validation Summary
+- Roles: accounts/models.py → User.user_type with helpers is_teacher/is_student used across views and permissions.
+- Teacher-only actions: creating/editing courses and materials; blocking/unblocking students; guarded by TeacherRequiredMixin (web) and IsTeacherOrReadOnly (API).
+- Enrollment and feedback guards: Course.can_enroll prevents invalid states; submit_feedback requires active enrollment and enforces one feedback per student per course.
+- Blocking: Enrollment.is_blocked immediately revokes course actions and is respected in signals and chat permissions.
+- File handling: CourseMaterialForm validates file presence/type/size; FileField storage under MEDIA_ROOT with downloadable flag control.
+- CSRF and auth: Web views use Django CSRF protection; API uses token auth; Channels relies on session auth scope.
+- Rate limiting: DRF throttling can be configured; production recommendation listed in future work.
+
+Notifications and Real-time Messaging
+- Signals push Notifications to teachers (on enroll) and to students (on new material). Both create persistent Notification records and emit WebSocket messages to user-specific groups notifications_{user_id} via Channels.
+- chat/consumers.py handles group chat (course rooms) and private chat; message receive flows persist messages then broadcast to room group; typing indicators supported.
+
+User Interface Notes (Web)
+- Templates under templates/courses/ present materials, enrollment buttons, progress, and feedback UI. Important pages include:
+  - course_detail.html: materials list, mark complete button for students, feedback form when enrolled.
+  - manage_students.html: teacher view to block/unblock, progress bars, action buttons linking to private chat or profile.
+  - materials pages: add/edit/delete forms restricted to teacher; materials appear on the course page and a dedicated listing.
+- Chat templates (templates/chat/) include room selection and creation (teacher), with messaging interfaces driven by WebSocket consumers.
+
+Deployment and Operations
+- ASGI and Channels
+  - elearning/asgi.py configures Django Channels; use daphne/uvicorn to serve ASGI in production.
+  - Configure CHANNEL_LAYERS to use Redis with REDIS_URL. Ensure Redis is available and secured in production environments.
+- Static/media assets
+  - Use collectstatic for production; ensure MEDIA_ROOT and STATIC_ROOT are configured. Course materials live under media/courses/<slug>/materials/.
+- Database
+  - Development uses SQLite via DATABASE_URL; production should switch to PostgreSQL with proper connection settings and migrations.
+- Observability
+  - Consider enabling logging for signals and consumers, and setup Sentry or similar for error tracking in production.
+
+Traceability – R1–R5 Checklist (All Mapped to Real Code)
+- R1.a Registration → api/serializers.py:UserRegistrationSerializer; api/views.py:register; accounts/models.py:User
+- R1.b Login/Logout → api/views.py:login/logout, authtoken
+- R1.c Search users → api/views.py:UserListView with filters/search
+- R1.d Create courses (teachers) → api/views.py:CourseListView.perform_create; courses/views.py create/edit; permissions
+- R1.e Enroll → courses/views.py:enroll_course; api/views.py:enroll_in_course; models constraints
+- R1.f Feedback → courses/models.py:Feedback; courses/views.py:submit_feedback; api feedback endpoints
+- R1.g Real-time chat → chat/consumers.py; chat/views.py create room and participants; Redis channels
+- R1.h Block/unblock → courses/views.py:block_student/unblock_student; models Enrollment flags
+- R1.i Status updates → accounts/models.py:StatusUpdate; api views/serializers and URLs
+- R1.j Materials upload → courses/models.py:CourseMaterial; courses/views.py material CBVs; api endpoints; templates display
+- R1.k Notify on enroll → courses/signals.py:notify_teacher_new_enrollment; also in enroll_course view
+- R1.l Notify on new material → courses/signals.py:notify_students_new_material; also in material create view
+- R2.a Models/migrations → normalized schema; unique_together, indexes; migrations maintained
+- R2.b Forms/validators/serialization → forms in courses/forms.py; validators on model fields; DRF serializers with read_only and validate
+- R2.c DRF usage → generic views, permissions, filters, tokens
+- R2.d URL routing → elearning/urls.py includes; api/urls.py REST mapping
+- R2.e Unit testing → test suites in api/tests.py, chat/tests.py, courses/tests.py, accounts/tests.py
+- R3 Database model → described entities and relations above (User, Course, Enrollment, Feedback, Material, Notification, etc.)
+- R4 REST interface → endpoints enumerated with permissions and filters
+- R5 Tests → consolidated explanation of coverage and intentions, including why the addendum existed and is now integrated
+
+Conclusion
+This consolidated report presents a complete, code-backed mapping of R1–R5 for the eLearning Django application. All functional requirements are implemented and enforced through models, views (web and API), permissions, signals, and Channels consumers. The REST API provides comprehensive access with appropriate validation and authorization. Server-side tests span authentication, resource CRUD, permissions, and chat model flows, and the prior R5 addendum’s detail has been integrated directly here for single-document review. The system is ready for deployment with ASGI/Channels and Redis, and production hardening recommendations (PostgreSQL, HTTPS, throttling, observability) are outlined above.

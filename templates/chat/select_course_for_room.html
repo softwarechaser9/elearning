@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block title %}Select Course for Chat Room - eLearning Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-comments"></i> Create Chat Room</h1>
+                <div>
+                    <a href="{% url 'chat:room_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Chat Rooms
+                    </a>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-graduation-cap"></i> Select a Course</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Choose a course to create a chat room for. Students enrolled in the course will automatically be added as participants.</p>
+                    
+                    {% if courses %}
+                        <div class="row">
+                            {% for course in courses %}
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card course-card h-100">
+                                    <div class="card-body">
+                                        {% if course.course_image %}
+                                            <img src="{{ course.course_image.url }}" class="card-img-top mb-3" alt="{{ course.title }}" style="height: 150px; object-fit: cover;">
+                                        {% else %}
+                                            <div class="bg-primary rounded d-flex align-items-center justify-content-center mb-3" style="height: 150px;">
+                                                <i class="fas fa-graduation-cap fa-3x text-white"></i>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        <h5 class="card-title">{{ course.title }}</h5>
+                                        <p class="card-text text-muted">{{ course.short_description|truncatechars:100 }}</p>
+                                        
+                                        <div class="mb-3">
+                                            <small class="text-muted">
+                                                <i class="fas fa-user-graduate"></i> {{ course.enrollment_count }} students enrolled
+                                            </small>
+                                        </div>
+                                        
+                                        <button type="button" class="btn btn-primary btn-block" 
+                                                onclick="showCreateRoomModal({{ course.id }}, '{{ course.title }}')">
+                                            <i class="fas fa-plus"></i> Create Chat Room
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-graduation-cap fa-4x text-muted mb-3"></i>
+                            <h4 class="text-muted">No Available Courses</h4>
+                            <p class="text-muted">
+                                You don't have any published courses without chat rooms yet.<br>
+                                Create a course first or check if your courses already have chat rooms.
+                            </p>
+                            <a href="{% url 'courses:create' %}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Create New Course
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Chat Room Modal -->
+<div class="modal fade" id="createRoomModal" tabindex="-1" aria-labelledby="createRoomModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createRoomModalLabel">Create Chat Room</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="createRoomForm" method="post">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <input type="hidden" id="courseId" name="course_id">
+                    
+                    <div class="form-group">
+                        <label for="courseName">Course:</label>
+                        <input type="text" class="form-control" id="courseName" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="roomName">Chat Room Name:</label>
+                        <input type="text" class="form-control" id="roomName" name="name" required 
+                               placeholder="e.g., General Discussion, Q&A, Study Group">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="roomDescription">Description (optional):</label>
+                        <textarea class="form-control" id="roomDescription" name="description" rows="3"
+                                  placeholder="Brief description of what this chat room is for..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Chat Room
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.course-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.course-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+</style>
+
+<script>
+function showCreateRoomModal(courseId, courseName) {
+    document.getElementById('courseId').value = courseId;
+    document.getElementById('courseName').value = courseName;
+    document.getElementById('roomName').value = courseName + ' - Chat Room';
+    document.getElementById('createRoomForm').action = '/chat/room/create/' + courseId + '/';
+    $('#createRoomModal').modal('show');
+}
+
+// Auto-focus on room name when modal opens
+$('#createRoomModal').on('shown.bs.modal', function () {
+    $('#roomName').focus().select();
+});
+</script>
+{% endblock %}

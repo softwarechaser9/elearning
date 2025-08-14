@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Register - eLearning Platform{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header text-center">
+                <h3><i class="fas fa-user-plus"></i> Create Your Account</h3>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ form.username|as_crispy_field }}
+                            {{ form.first_name|as_crispy_field }}
+                            {{ form.email|as_crispy_field }}
+                            {{ form.password1|as_crispy_field }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.user_type|as_crispy_field }}
+                            {{ form.last_name|as_crispy_field }}
+                            {{ form.password2|as_crispy_field }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            {{ form.bio|as_crispy_field }}
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-user-plus"></i> Create Account
+                    </button>
+                </form>
+                
+                <hr>
+                <div class="text-center">
+                    <p class="mb-0">Already have an account? 
+                        <a href="{% url 'accounts:login' %}" class="text-primary">Login here</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

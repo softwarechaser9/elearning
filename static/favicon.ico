@@ -1,0 +1,11 @@
+<!-- Simple HTML favicon placeholder -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>eLearning Platform</title>
+</head>
+<body>
+    <h1>eLearning Platform Favicon</h1>
+    <p>This is a placeholder. Add a real favicon.ico file to the static directory.</p>
+</body>
+</html>

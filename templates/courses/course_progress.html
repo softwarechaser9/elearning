@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ course.title }} - Progress{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Course Header -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-1">
+                                <i class="fas fa-chart-line"></i> Course Progress
+                            </h4>
+                            <h6 class="mb-0">{{ course.title }}</h6>
+                        </div>
+                        <div class="text-right">
+                            {% if is_completed %}
+                                <span class="badge badge-success badge-lg">
+                                    <i class="fas fa-trophy"></i> Completed
+                                </span>
+                            {% else %}
+                                <span class="badge badge-warning badge-lg">
+                                    <i class="fas fa-clock"></i> In Progress
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Progress Bar -->
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6>Overall Progress</h6>
+                            <div class="progress mb-3" style="height: 25px;">
+                                <div class="progress-bar progress-bar-striped" 
+                                     role="progressbar" 
+                                     data-progress="{{ progress_percentage }}"
+                                     aria-valuenow="{{ progress_percentage }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                    {{ progress_percentage }}%
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <h3 class="text-primary">{{ progress_percentage }}%</h3>
+                                <p class="mb-0">Complete</p>
+                                {% if enrollment.date_completed %}
+                                    <small class="text-muted">
+                                        Completed on {{ enrollment.date_completed|date:"M d, Y" }}
+                                    </small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Materials Progress -->
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-list-check"></i> Course Materials</h5>
+                </div>
+                <div class="card-body">
+                    {% if materials_with_status %}
+                        <div class="list-group list-group-flush">
+                            {% for item in materials_with_status %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <div class="mr-3">
+                                        {% if item.material.material_type == 'pdf' %}
+                                            <i class="fas fa-file-pdf fa-2x text-danger"></i>
+                                        {% elif item.material.material_type == 'video' %}
+                                            <i class="fas fa-play-circle fa-2x text-primary"></i>
+                                        {% elif item.material.material_type == 'image' %}
+                                            <i class="fas fa-image fa-2x text-success"></i>
+                                        {% elif item.material.material_type == 'link' %}
+                                            <i class="fas fa-external-link-alt fa-2x text-info"></i>
+                                        {% else %}
+                                            <i class="fas fa-file fa-2x text-secondary"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1">{{ item.material.title }}</h6>
+                                        {% if item.material.description %}
+                                            <p class="mb-1 text-muted">{{ item.material.description|truncatechars:100 }}</p>
+                                        {% endif %}
+                                        <small class="text-muted">
+                                            {{ item.material.get_material_type_display }} • 
+                                            Added {{ item.material.created_at|date:"M d, Y" }}
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    {% if item.is_completed %}
+                                        <span class="badge badge-success badge-lg">
+                                            <i class="fas fa-check"></i> Completed
+                                        </span>
+                                    {% else %}
+                                        <form method="post" action="{% url 'courses:mark_material_complete' item.material.id %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-check"></i> Mark Complete
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No Materials Available</h5>
+                            <p class="text-muted">The teacher hasn't added any materials yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Course Info -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6><i class="fas fa-info-circle"></i> Course Information</h6>
+                            <hr>
+                            <p><strong>Teacher:</strong> {{ course.teacher.get_full_name|default:course.teacher.username }}</p>
+                            <p><strong>Difficulty:</strong> {{ course.get_difficulty_display }}</p>
+                            <p><strong>Duration:</strong> {{ course.duration_weeks }} weeks</p>
+                            <p><strong>Enrolled:</strong> {{ enrollment.date_enrolled|date:"M d, Y" }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6><i class="fas fa-chart-bar"></i> Statistics</h6>
+                            <hr>
+                            <p><strong>Materials:</strong> {{ materials_with_status|length }} total</p>
+                            <p><strong>Completed:</strong> 
+                                {% with completed_count=materials_with_status|length %}
+                                    {% for item in materials_with_status %}
+                                        {% if item.is_completed %}
+                                            {{ forloop.counter0|add:"1" }}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endwith %}
+                                 / {{ materials_with_status|length }}
+                            </p>
+                            {% if is_completed %}
+                                <p><strong>Certificate:</strong> 
+                                    <span class="text-success">
+                                        <i class="fas fa-certificate"></i> Available
+                                    </span>
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="row mt-4">
+                <div class="col-12 text-center">
+                    <a href="{% url 'courses:detail' course.slug %}" class="btn btn-primary">
+                        <i class="fas fa-book"></i> Back to Course
+                    </a>
+                    <a href="{% url 'courses:my_courses' %}" class="btn btn-secondary">
+                        <i class="fas fa-list"></i> My Courses
+                    </a>
+                    {% if is_completed %}
+                        <button class="btn btn-success" onclick="alert('Certificate feature coming soon!')">
+                            <i class="fas fa-download"></i> Download Certificate
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set progress bar widths from data attributes
+    const progressBars = document.querySelectorAll('.progress-bar[data-progress]');
+    progressBars.forEach(function(progressBar) {
+        const progress = progressBar.getAttribute('data-progress');
+        progressBar.style.width = progress + '%';
+    });
+});
+</script>
+{% endblock %}

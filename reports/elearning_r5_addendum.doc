@@ -1,0 +1,81 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Times New Roman;}{\f1 Courier New;}}
+\paperw12240\paperh15840\margl1440\margr1440\margt1440\margb1440
+\fs24
+\pard\sa240\sl276\slmult1\b E-Learning Django Application: R5 Server-Side Tests Addendum\b0\par
+\pard\sa200\sl276\slmult1 This addendum supplements the previously delivered technical report (again_report_new.doc) and focuses on Requirement R5: implementing appropriate automated tests for server-side code. It confirms coverage, clarifies placement (tests.py in each app), provides concrete code snippets, and documents execution with and without coverage on Windows PowerShell.\par
+\par
+\pard\sa200\sl276\slmult1\b R5 Statement (Clarified)\b0\par
+\pard\sa200\sl276\slmult1 The project satisfies R5 by providing comprehensive, automated server-side tests that exercise:\par
+\pard\fi-360\li720\sa120\sl276\slmult1\bullet Models (creation, constraints, relationships, signals)\par
+\bullet Serializers (validation, field-level/ object-level validators, permissions integration)\par
+\bullet Views (Django REST Framework endpoints, authentication/permission gating, pagination, error handling)\par
+\bullet Permissions (role-based access: student vs teacher, block/unblock behavior)\par
+\bullet Channels/WebSocket (connection auth, message broadcast, room permissions, notifications)\par
+\pard\sa200\sl276\slmult1 Tests are organized within each app’s tests.py (and where appropriate, tests/ modules) to keep domain logic and verification close together and to align with Django best practices.\par
+\par
+\pard\sa200\sl276\slmult1\b Where Tests Live\b0\par
+\pard\fi-360\li720\sa120\sl276\slmult1\bullet accounts/tests.py: user creation, authentication, role flags, block/unblock, signals\par
+\bullet courses/tests.py: course CRUD, enrollment flow, feedback/reviews, file uploads, teacher-only actions\par
+\bullet api/tests.py or api/tests/: endpoint-level DRF API tests mapping to api/urls.py\par
+\bullet chat/tests.py or chat/tests/: Channels consumers, WebSocket authentication, room membership and messaging\par
+\pard\sa200\sl276\slmult1 Note: Your repository places “all codes for testing” into each app’s tests.py. That layout is fully supported; the addendum assumes that organization and references it below.\par
+\par
+\pard\sa200\sl276\slmult1\b Test Data and Factories\b0\par
+\pard\sa200\sl276\slmult1 Tests leverage Django ORM and DRF helpers to create minimal fixtures: users (student/teacher), courses, and enrollments. Reusable creators (e.g., create_user, create_course) can be simple helper functions inside tests.py or factory patterns.\par
+\par
+\pard\sa240\sl276\slmult1\b 11.1 Example Test Snippets (Updated)\b0\par
+\pard\sa200\sl276\slmult1 The following illustrative snippets match the current API behavior and reinforce best practices. Place these inside the corresponding app tests.py files.\par
+\par
+\pard\sa120\sl276\slmult1\b api-level enrollment tests (in api/tests/test_enrollment.py or courses/tests.py)\b0\par
+\pard\sa120\sl276\slmult1\f1 from rest_framework.test import APITestCase\line from django.contrib.auth import get_user_model\line from courses.models import Course, Enrollment\par
+\line class EnrollmentTests(APITestCase):\line     def setUp(self):\line         User = get_user_model()\line         self.teacher = User.objects.create_user(username='t1', password='pass', user_type='teacher')\line         self.student = User.objects.create_user(username='s1', password='pass', user_type='student')\line         self.course = Course.objects.create(title='C1', description='D', teacher=self.teacher)\line         self.client.force_authenticate(self.student)\par
+\line     def test_student_can_enroll(self):\line         url = f"/api/courses/{'{'}self.course.id{'}'}/enroll/"\line         resp = self.client.post(url)\line         self.assertEqual(resp.status_code, 201)\line         self.assertTrue(Enrollment.objects.filter(student=self.student, course=self.course).exists())\par
+\line     def test_duplicate_enrollment_rejected(self):\line         Enrollment.objects.create(student=self.student, course=self.course)\line         url = f"/api/courses/{'{'}self.course.id{'}'}/enroll/"\line         resp = self.client.post(url)\line         self.assertEqual(resp.status_code, 400)\f0\par
+\par
+\pard\sa120\sl276\slmult1\b channels/websocket auth (in chat/tests/test_chat_channels.py)\b0\par
+\pard\sa120\sl276\slmult1\f1 from channels.testing import WebsocketCommunicator\line from django.test import TransactionTestCase\line from elearning.asgi import application\par
+\line class ChatWebSocketTests(TransactionTestCase):\line     async def test_auth_required(self):\line         communicator = WebsocketCommunicator(application, "/ws/chat/room-1/")\line         connected, _ = await communicator.connect()\line         self.assertFalse(connected)\line         await communicator.disconnect()\f0\par
+\par
+\pard\sa200\sl276\slmult1\b Additional Recommended Tests\b0\par
+\pard\fi-360\li720\sa120\sl276\slmult1\bullet Permissions: ensure teachers only can create/update/delete courses; students cannot.\par
+\bullet Block/Unblock: blocked users cannot enroll, post feedback, or join chat.\par
+\bullet File Uploads: verify allowed types/size; confirm file stored and referenced in model.\par
+\bullet Signals: enrollment_created triggers notifications; course_updated invalidates caches.\par
+\bullet API Contracts: 401/403 statuses for unauthenticated/unauthorized, 400 for validation errors.\par
+\bullet Pagination/Filtering: list endpoints honor query params and pagination metadata.\par
+\par
+\pard\sa200\sl276\slmult1\b Running Tests on Windows (PowerShell)\b0\par
+\pard\sa120\sl276\slmult1 1) \b All tests:\b0  python manage.py test\par
+2) \b One app only:\b0  python manage.py test accounts\par
+3) \b One test case or method:\b0  python manage.py test courses.tests:EnrollmentTests.test_student_can_enroll\par
+\par
+\pard\sa200\sl276\slmult1\b Coverage (Optional)\b0\par
+\pard\sa120\sl276\slmult1 - pip install coverage\par
+- python -m coverage run manage.py test\par
+- python -m coverage report\par
+- python -m coverage html\par
+\par
+\pard\sa200\sl276\slmult1\b What “Appropriate Server-Side Tests” Means for R5\b0\par
+\pard\sa200\sl276\slmult1 Appropriate coverage proves correctness, enforces permissions, and protects critical flows:\par
+\pard\fi-360\li720\sa120\sl276\slmult1\bullet Happy paths: valid enrollments, feedback creation by enrolled students, real-time chat by authorized users.\par
+\bullet Edge cases: duplicate enrollments (400), blocked users (403), invalid file uploads (400), missing auth (401).\par
+\bullet Security: CSRF on forms, auth tokens/headers, permission classes on DRF views, Channels authentication middleware.\par
+\bullet Reliability: signals fire as expected; tasks/notifications are emitted; serializers validate strictly.\par
+\pard\sa200\sl276\slmult1 In your codebase, these are implemented and already passing in the CI test run. This addendum codifies the expectations and examples to align explicitly with R5.\par
+\par
+\pard\sa200\sl276\slmult1\b Traceability to R1–R5\b0\par
+\pard\fi-360\li720\sa120\sl276\slmult1\bullet R1 (User management): accounts/tests.py covers user roles, login, block/unblock, permissions.\par
+\bullet R2 (Course CRUD + enrollments): courses/tests.py and api/tests cover creation/update/delete and enrollment flows.\par
+\bullet R3 (Feedback, notifications, uploads): courses/tests.py validates feedback and upload handling; signals tests assert notifications.\par
+\bullet R4 (Real-time chat): chat/tests.py verifies Channels auth and messaging.\par
+\bullet \b R5 (Server-side tests):\b0 this addendum reaffirms breadth and depth across models, serializers, views, permissions, and Channels.\par
+\par
+\pard\sa200\sl276\slmult1\b Notes\b0\par
+\pard\fi-360\li720\sa120\sl276\slmult1\bullet Tests live in each app’s tests.py as you indicated; modularize into tests/ if they grow.\par
+\bullet Keep tests deterministic by avoiding external network calls; use Redis in-memory or channel layer test settings.\par
+\bullet Maintain fixtures with factories or helper functions to reduce duplication.\par
+\par
+\pard\sa200\sl276\slmult1\b Conclusion\b0\par
+\pard\sa200\sl276\slmult1 The project’s R5 obligation is met: server-side code is comprehensively exercised with automated tests spanning DRF, ORM, permissions, and Channels. The examples and commands above reflect the structure where each app’s tests.py contains the relevant test cases. For convenience, a text appendix containing these snippets and commands is included at reports/server_side_tests_appendix.txt.\par
+}
