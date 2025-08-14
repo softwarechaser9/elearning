@@ -102,11 +102,15 @@ ASGI_APPLICATION = 'elearning.asgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# Build the DB URL and only require SSL for Postgres
+DB_URL = config('DATABASE_URL', default=f"sqlite:///{(BASE_DIR / 'db.sqlite3').as_posix()}")
+SSL_REQUIRE = DB_URL.startswith(('postgres://', 'postgresql://'))
+
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL', default='sqlite:///db.sqlite3'),
+        default=DB_URL,
         conn_max_age=600,
-        ssl_require=True
+        ssl_require=SSL_REQUIRE,
     )
 }
 
